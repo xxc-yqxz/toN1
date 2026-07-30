@@ -70,10 +70,12 @@
         display: flex;
         justify-content: center;
         gap: 20px;
+        flex-wrap: wrap;
       }
       .action-btns span {
         cursor: pointer;
         font-size: 1.5rem;
+        white-space: nowrap;
         opacity: 0.3;
         transition: all 0.3s;
       }
@@ -430,7 +432,7 @@
         color: #c62828;
       }
       .exam-option.disabled {
-        pointer-events: none;
+        opacity: 0.7;
         opacity: 0.7;
       }
       .exam-feedback {
@@ -447,6 +449,76 @@
       }
       .exam-next-btn.show {
         display: inline-block;
+      }
+
+      /* 选项详情弹窗 */
+      #option-detail-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.4);
+        z-index: 300;
+        justify-content: center;
+        align-items: center;
+      }
+      #option-detail-overlay.show {
+        display: flex;
+      }
+      .option-detail-card {
+        background: #fff;
+        border: 2px solid #000;
+        padding: 25px 30px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        line-height: 1.8;
+      }
+      .option-detail-card h4 {
+        margin: 0 0 15px 0;
+        font-size: 1.4rem;
+      }
+      .option-detail-card .kana-line {
+        font-size: 1rem;
+        opacity: 0.5;
+        margin-bottom: 15px;
+      }
+      .option-detail-card .meaning-line {
+        font-size: 0.95rem;
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #eee;
+      }
+      .option-detail-card .example-line {
+        font-size: 0.85rem;
+        color: #555;
+        white-space: pre-line;
+      }
+      .option-detail-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-top: 20px;
+      }
+      .option-detail-actions button {
+        padding: 8px 18px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        border: 1px solid #000;
+        background: transparent;
+        font-family: inherit;
+        transition: all 0.2s;
+      }
+      .option-detail-actions button:hover {
+        background: #000;
+        color: #fff;
+      }
+      .option-detail-actions button.fav-active {
+        background: #ffd700;
+        border-color: #ffd700;
       }
 
       /* 考试结果 */
@@ -602,6 +674,21 @@
         <div class="exam-options" id="exam-options"></div>
         <div class="exam-feedback" id="exam-feedback"></div>
         <button class="exam-next-btn" id="exam-next-btn" onclick="nextExamQuestion()">下一题 →</button>
+      </div>
+    </div>
+
+    <!-- 选项详情弹窗 -->
+    <div id="option-detail-overlay" onclick="closeOptionDetail(event)">
+      <div class="option-detail-card" onclick="event.stopPropagation()">
+        <h4 id="detail-word"></h4>
+        <div class="kana-line" id="detail-kana"></div>
+        <div class="meaning-line" id="detail-meaning"></div>
+        <div class="example-line" id="detail-example"></div>
+        <div class="option-detail-actions">
+          <button id="detail-fav-btn" onclick="toggleDetailFav()">⭐ 收藏</button>
+          <button id="detail-speak-btn" onclick="speakDetailWord()">🔊 朗读</button>
+          <button onclick="document.getElementById('option-detail-overlay').classList.remove('show')">关闭</button>
+        </div>
       </div>
     </div>
 
@@ -12855,6 +12942,16 @@
       // --- 考试模式 ---
       let examState = null // 考试状态对象
 
+      // 保存/加载考试设置
+      function saveExamSettings(settings) {
+        localStorage.setItem('exam_settings', JSON.stringify(settings))
+      }
+      function loadExamSettings() {
+        try {
+          return JSON.parse(localStorage.getItem('exam_settings') || 'null')
+        } catch { return null }
+      }
+
       // 打开考试设置面板
       function openExamSetup() {
         const modal = document.getElementById('exam-setup-modal')
@@ -12867,11 +12964,28 @@
           const opt = document.createElement('option')
           opt.value = lib.name
           opt.textContent = `${lib.name} (${lib.words.length}词)`
-          if (lib.name === currentLibName) {
-            opt.selected = true
-          }
           select.appendChild(opt)
         })
+
+        // 加载上次保存的设置，没有则用默认值
+        const saved = loadExamSettings()
+        if (saved) {
+          if (saved.libName && dataSource.find((l) => l.name === saved.libName)) {
+            document.getElementById('exam-lib-select').value = saved.libName
+          } else {
+            document.getElementById('exam-lib-select').value = currentLibName || dataSource[0]?.name || ''
+          }
+          document.getElementById('exam-direction').value = saved.direction || 'jp2cn'
+          document.getElementById('exam-scope').value = saved.scope || 'all'
+          document.getElementById('exam-include-learned').checked = saved.includeLearned || false
+          document.getElementById('exam-count').value = saved.count || 10
+        } else {
+          document.getElementById('exam-lib-select').value = currentLibName || dataSource[0]?.name || ''
+          document.getElementById('exam-direction').value = 'jp2cn'
+          document.getElementById('exam-scope').value = 'all'
+          document.getElementById('exam-include-learned').checked = false
+          document.getElementById('exam-count').value = 10
+        }
       }
 
       // 关闭考试设置面板
@@ -12879,23 +12993,108 @@
         document.getElementById('exam-setup-modal').classList.remove('show')
       }
 
-      // 从中文解释中提取纯中文部分作为选项显示
-      function extractChinese(text) {
-        // 提取译：后面的中文
-        const match = text.match(/译[：:]\s*(.+)/)
-        if (match) return match[1].trim()
+      // 当前弹窗显示的单词对象
+      let detailCurrentWord = null
 
-        // 如果没有译：，尝试提取中文部分
-        // 移除例：和日文部分
-        let cleaned = text.replace(/例[：:].+/g, '').trim()
-        cleaned = cleaned.replace(/[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]+\s*[:：]\s*/g, '')
-        cleaned = cleaned.trim()
-        return cleaned || text.substring(0, 50)
+      // 显示选项详情弹窗
+      function showOptionDetail(opt) {
+        const word = opt.word
+        detailCurrentWord = word
+        const overlay = document.getElementById('option-detail-overlay')
+        document.getElementById('detail-word').textContent = word.w
+
+        // 更新收藏按钮状态
+        updateDetailFavBtn()
+
+        if (isWordLib(examState.libName)) {
+          // 单词类：显示假名+中文释义，没有例句
+          const lines = word.c.split('\n')
+          const kana = lines.length >= 1 ? lines[0].trim() : ''
+          const meaning = lines.length >= 2 ? lines[1].trim() : ''
+          document.getElementById('detail-kana').textContent = kana
+          document.getElementById('detail-kana').style.display = 'block'
+          document.getElementById('detail-meaning').textContent = meaning
+          document.getElementById('detail-meaning').style.display = 'block'
+          document.getElementById('detail-example').textContent = ''
+          document.getElementById('detail-example').style.display = 'none'
+        } else {
+          // 语法类：显示语法含义+例句
+          const meaning = getPureMeaning(word.c, examState.libName)
+          const example = getExampleText(word.c)
+          document.getElementById('detail-kana').textContent = ''
+          document.getElementById('detail-kana').style.display = 'none'
+          document.getElementById('detail-meaning').textContent = meaning
+          document.getElementById('detail-meaning').style.display = 'block'
+          document.getElementById('detail-example').textContent = example || ''
+          document.getElementById('detail-example').style.display = example ? 'block' : 'none'
+        }
+        overlay.classList.add('show')
+      }
+
+      // 更新弹窗收藏按钮状态
+      function updateDetailFavBtn() {
+        if (!detailCurrentWord) return
+        const libName = examState.libName
+        const favKey = `fav_${libName}`
+        const favs = JSON.parse(localStorage.getItem(favKey) || '[]')
+        const btn = document.getElementById('detail-fav-btn')
+        if (favs.includes(detailCurrentWord.w)) {
+          btn.textContent = '⭐ 已收藏'
+          btn.classList.add('fav-active')
+        } else {
+          btn.textContent = '⭐ 收藏'
+          btn.classList.remove('fav-active')
+        }
+      }
+
+      // 弹窗中切换收藏
+      function toggleDetailFav() {
+        if (!detailCurrentWord) return
+        const libName = examState.libName
+        const favKey = `fav_${libName}`
+        let favs = JSON.parse(localStorage.getItem(favKey) || '[]')
+
+        if (favs.includes(detailCurrentWord.w)) {
+          favs = favs.filter((w) => w !== detailCurrentWord.w)
+        } else {
+          favs.push(detailCurrentWord.w)
+        }
+        localStorage.setItem(favKey, JSON.stringify(favs))
+        updateDetailFavBtn()
+      }
+
+      // 弹窗中朗读单词
+      function speakDetailWord() {
+        if (!detailCurrentWord) return
+        const word = detailCurrentWord
+        const meaningText = getChineseTranslation(word.c, examState.libName)
+        speakWordAndMeaning(word.w, meaningText)
+      }
+
+      // 关闭选项详情弹窗（点击遮罩关闭）
+      function closeOptionDetail(event) {
+        if (event.target === document.getElementById('option-detail-overlay')) {
+          document.getElementById('option-detail-overlay').classList.remove('show')
+        }
       }
 
       // 判断是否为单词类词库（N1单词/N2单词），格式为"读音 \n 词性 中文释义"
       function isWordLib(libName) {
         return libName === 'N1单词' || libName === 'N2单词'
+      }
+
+      // 提取语法词库的例句（取"例："和"译："行，去掉标签）
+      function getExampleText(text) {
+        const lines = text.split('\n')
+        const example = []
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed) continue
+          if (trimmed.startsWith('例') || trimmed.startsWith('译')) {
+            example.push(trimmed.replace(/^(例|译)[：:]\s*/, ''))
+          }
+        }
+        return example.length > 0 ? example.join('\n') : null
       }
 
       // 获取单词的纯含义（用于日选中选项显示、中选日题目显示）
@@ -12977,6 +13176,9 @@
         const includeLearned = document.getElementById('exam-include-learned').checked
         const count = parseInt(document.getElementById('exam-count').value) || 10
 
+        // 保存当前设置
+        saveExamSettings({ libName, direction, scope, includeLearned, count })
+
         const lib = dataSource.find((l) => l.name === libName)
         if (!lib || lib.words.length === 0) {
           alert('所选词库没有单词')
@@ -12999,30 +13201,24 @@
         // 默认跳过已考过的（除非勾选了"包含已考过"）
         if (!includeLearned) {
           const historyKey = scope === 'favorites' ? `exam_history_fav_${libName}` : `exam_history_${libName}`
-          let history = JSON.parse(localStorage.getItem(historyKey) || '[]')
+          const history = JSON.parse(localStorage.getItem(historyKey) || '[]')
 
-          // 如果所有都考过了，清空记录，从头开始
-          if (history.length >= lib.words.length) {
-            localStorage.removeItem(historyKey)
-            history = []
-          }
-
-          const learnedSet = new Set(history)
-          pool = pool.filter((w) => {
+          // 如果候选池中的单词已经全部考过，清空记录，直接使用全部pool（不过滤）
+          const allLearned = pool.every((w) => {
             const gIdx = lib.words.findIndex((lw) => lw.w === w.w)
-            return !learnedSet.has(gIdx)
+            return history.includes(gIdx)
           })
 
-          // 过滤后如果没剩了，清空记录重新来
-          if (pool.length === 0) {
+          if (!allLearned) {
+            // 还有没考过的，正常过滤
+            const learnedSet = new Set(history)
+            pool = pool.filter((w) => {
+              const gIdx = lib.words.findIndex((lw) => lw.w === w.w)
+              return !learnedSet.has(gIdx)
+            })
+          } else {
+            // 全部考过了，清空记录从头开始
             localStorage.removeItem(historyKey)
-            pool = scope === 'favorites'
-              ? lib.words.filter((w) => {
-                  const favKey = `fav_${libName}`
-                  const favWords = JSON.parse(localStorage.getItem(favKey) || '[]')
-                  return favWords.includes(w.w)
-                })
-              : [...lib.words]
           }
         }
 
@@ -13095,8 +13291,20 @@
         options.forEach((opt, idx) => {
           const div = document.createElement('div')
           div.className = 'exam-option'
-          div.innerHTML = `<strong>${String.fromCharCode(65 + idx)}.</strong> ${opt.text}`
-          div.onclick = () => selectExamOption(idx, opt, options)
+          let label = `<strong>${String.fromCharCode(65 + idx)}.</strong> ${opt.text}`
+          // 中选日模式下，单词类词库在右侧显示假名
+          if (direction === 'cn2jp' && opt.kana) {
+            label += ` <span style="font-size:0.85rem;opacity:0.5">${opt.kana}</span>`
+          }
+          div.innerHTML = label
+          div.style.cursor = 'pointer'
+          // 统一用同一个点击处理函数
+          div._optIdx = idx
+          div._opt = opt
+          div._options = options
+          div.onclick = function() {
+            handleOptionClick(this)
+          }
           optionsEl.appendChild(div)
         })
 
@@ -13111,6 +13319,7 @@
 
       // 预加载音频缓存（当前题+往后5题）
       function prefetchAudioBatch() {
+        if (!examState) return
         if (!examState._audioCache) {
           examState._audioCache = {}
         }
@@ -13159,11 +13368,12 @@
         const allWords = lib.words
         const correctIdx = allWords.findIndex((w) => w.w === correctWord.w)
 
-        // 生成干扰项索引
+        // 生成干扰项索引（最多4个选项，但不超过词库单词数）
+        const maxOptions = Math.min(4, allWords.length)
         const distractors = new Set()
         distractors.add(correctIdx)
 
-        while (distractors.size < 4) {
+        while (distractors.size < maxOptions) {
           const randIdx = Math.floor(Math.random() * allWords.length)
           distractors.add(randIdx)
         }
@@ -13173,22 +13383,42 @@
         distractors.forEach((idx) => {
           const word = allWords[idx]
           let text = ''
+          let kana = ''
           if (direction === 'jp2cn') {
             // 日选中：选项是中文意思
             text = getPureMeaning(word.c, examState.libName)
           } else {
             // 中选日：选项是日语单词
             text = word.w
+            // 单词类词库提取假名
+            if (isWordLib(examState.libName)) {
+              const lines = word.c.split('\n')
+              kana = lines.length >= 1 ? lines[0].trim() : ''
+            }
           }
           options.push({
             index: idx,
             text: text,
+            kana: kana,
+            word: word, // 保留原始word对象，用于弹窗显示详情
             isCorrect: idx === correctIdx
           })
         })
 
         // 随机打乱选项顺序
         return options.sort(() => Math.random() - 0.5)
+      }
+
+      // 处理选项点击（统一入口）
+      function handleOptionClick(div) {
+        if (!examState) return
+        if (!examState.answered) {
+          // 未作答：选择选项
+          selectExamOption(div._optIdx, div._opt, div._options)
+        } else {
+          // 已作答：弹窗显示该单词详情
+          showOptionDetail(div._opt)
+        }
       }
 
       // 选择选项
@@ -13211,19 +13441,20 @@
         })
 
         // 判断正误
+        let feedbackHTML = ''
         if (option.isCorrect) {
           examState.correct++
-          document.getElementById('exam-feedback').innerHTML =
-            '<span style="color:#4caf50">✅ 正确！</span>'
+          feedbackHTML = '<span style="color:#4caf50">✅ 正确！</span>'
         } else {
           examState.wrong++
           // 高亮用户选择的错误选项
-          optionEls[optIdx].classList.add('wrong')
+          if (optionEls[optIdx]) {
+            optionEls[optIdx].classList.add('wrong')
+          }
 
           // 显示正确答案
           const correctText = correctOption.text
-          document.getElementById('exam-feedback').innerHTML =
-            `<span style="color:#c62828">❌ 错误！正确答案是：<strong>${correctText}</strong></span>`
+          feedbackHTML = `<span style="color:#c62828">❌ 错误！正确答案是：<strong>${correctText}</strong></span>`
 
           // 自动加入收藏
           autoAddToFavorites(q)
@@ -13235,6 +13466,16 @@
           })
         }
 
+        // 对语法类词库，显示例句
+        if (!isWordLib(examState.libName)) {
+          const exampleText = getExampleText(q.c)
+          if (exampleText) {
+            feedbackHTML += `<div style="margin-top:12px;padding:10px;background:#f9f9f9;border-left:2px solid #ccc;font-size:0.85rem;text-align:left;line-height:1.6;white-space:pre-line">${exampleText}</div>`
+          }
+        }
+
+        document.getElementById('exam-feedback').innerHTML = feedbackHTML
+
         // 朗读单词和解释：播放预请求的音频
         playPrefetchedAudio()
 
@@ -13242,7 +13483,7 @@
         document.getElementById('exam-next-btn').classList.add('show')
       }
 
-      // 播放预请求的音频blob
+      // 播放预请求的音频blob（逐个播放，预加载消除间隙）
       async function playPrefetchedAudio() {
         const cache = examState._audioCache
         const blobs = cache ? cache[examState.currentQ] : null
@@ -13253,13 +13494,36 @@
           speakWordAndMeaning(q.w, meaningText)
           return
         }
-        // 将日语和中文blob合并成一个blob，消除间隔
-        const parts = []
-        if (blobs.jpBlob) parts.push(blobs.jpBlob)
-        if (blobs.cnBlob) parts.push(blobs.cnBlob)
-        if (parts.length > 0) {
-          const mergedBlob = new Blob(parts, { type: 'audio/mpeg' })
-          await playAudioBlob(mergedBlob)
+        // 逐个播放：先创建两个Audio元素，第二个在第一个开始播放时就预加载
+        const audioElements = []
+        if (blobs.jpBlob) {
+          const url = URL.createObjectURL(blobs.jpBlob)
+          const audio = new Audio(url)
+          audioElements.push({ audio, url })
+        }
+        if (blobs.cnBlob) {
+          const url = URL.createObjectURL(blobs.cnBlob)
+          const audio = new Audio(url)
+          audioElements.push({ audio, url })
+        }
+        // 依次播放
+        for (let i = 0; i < audioElements.length; i++) {
+          const { audio, url } = audioElements[i]
+          // 下一个音频提前加载
+          if (i + 1 < audioElements.length) {
+            audioElements[i + 1].audio.load()
+          }
+          await new Promise((resolve) => {
+            audio.onended = () => {
+              URL.revokeObjectURL(url)
+              resolve()
+            }
+            audio.onerror = () => {
+              URL.revokeObjectURL(url)
+              resolve()
+            }
+            audio.play()
+          })
         }
       }
 
@@ -13291,13 +13555,26 @@
           fetchTTSBlob(cnText, 'zh-CN')
         ])
 
-        // 合并日语和中文blob，一次播放无间隔
-        const parts = []
-        if (jpBlob) parts.push(jpBlob)
-        if (cnBlob) parts.push(cnBlob)
-        if (parts.length > 0) {
-          const mergedBlob = new Blob(parts, { type: 'audio/mpeg' })
-          await playAudioBlob(mergedBlob)
+        // 逐个播放：先创建两个Audio，第二个提前load消除间隙
+        const audioElements = []
+        if (jpBlob) {
+          const url = URL.createObjectURL(jpBlob)
+          audioElements.push({ audio: new Audio(url), url })
+        }
+        if (cnBlob) {
+          const url = URL.createObjectURL(cnBlob)
+          audioElements.push({ audio: new Audio(url), url })
+        }
+        for (let i = 0; i < audioElements.length; i++) {
+          const { audio, url } = audioElements[i]
+          if (i + 1 < audioElements.length) {
+            audioElements[i + 1].audio.load()
+          }
+          await new Promise((resolve) => {
+            audio.onended = () => { URL.revokeObjectURL(url); resolve() }
+            audio.onerror = () => { URL.revokeObjectURL(url); resolve() }
+            audio.play()
+          })
         }
       }
 
@@ -13438,6 +13715,7 @@
 
       // 显示考试结果
       function showExamResult() {
+        if (!examState) return
         document.getElementById('exam-panel').classList.remove('show')
 
         const resultPanel = document.getElementById('exam-result')
@@ -13455,17 +13733,20 @@
         // 记录已考过的下标到缓存（勾选"包含已考过"时不记录，因为是复习模式）
         const libName = examState.libName
         if (!examState.includeLearned) {
+          const historyKey = examState.scope === 'favorites' ? `exam_history_fav_${libName}` : `exam_history_${libName}`
+          // 一次性读取，内存中修改，最后一次性写回
+          const history = JSON.parse(localStorage.getItem(historyKey) || '[]')
+          let changed = false
           examState.questions.forEach((q) => {
             const gIdx = examState.lib.words.findIndex((w) => w.w === q.w)
-            if (gIdx !== -1) {
-              const historyKey = examState.scope === 'favorites' ? `exam_history_fav_${libName}` : `exam_history_${libName}`
-              const history = JSON.parse(localStorage.getItem(historyKey) || '[]')
-              if (!history.includes(gIdx)) {
-                history.push(gIdx)
-                localStorage.setItem(historyKey, JSON.stringify(history))
-              }
+            if (gIdx !== -1 && !history.includes(gIdx)) {
+              history.push(gIdx)
+              changed = true
             }
           })
+          if (changed) {
+            localStorage.setItem(historyKey, JSON.stringify(history))
+          }
         }
 
         // 检查是否全部考完（普通模式），全部考完则自动清空
@@ -13506,6 +13787,7 @@
 
       // 重新考试（使用相同设置）
       function retryExam() {
+        if (!examState) return
         document.getElementById('exam-result').classList.remove('show')
         // 使用上次考试的设置
         const libName = examState._libName || examState.libName
@@ -13543,7 +13825,7 @@
 
       // 退出考试
       function quitExam() {
-        if (examState && !examState.answered && examState.currentQ > 0) {
+        if (examState && examState.currentQ >= 0) {
           if (!confirm('确定要退出考试吗？当前进度将不会保存。')) return
         }
         document.getElementById('exam-panel').classList.remove('show')
@@ -13555,7 +13837,7 @@
       document.addEventListener('keydown', (e) => {
         // 考试模式下的键盘操作
         if (document.getElementById('exam-panel').classList.contains('show')) {
-          if (e.key >= '1' && e.key <= '4' && !examState?.answered) {
+          if (e.key >= '1' && e.key <= '4') {
             const options = document.querySelectorAll('#exam-options .exam-option')
             const idx = parseInt(e.key) - 1
             if (options[idx]) {
