@@ -818,15 +818,16 @@
           <h4>词库管理</h4>
           <div id="library-container" style="margin-top: 10px"></div>
           <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap">
-            <button onclick="importFavorites()" style="font-size: 0.8rem; padding: 5px 10px">
-              导入收藏集
-            </button>
-            <button onclick="exportFavorites()" style="font-size: 0.8rem; padding: 5px 10px">
-              导出收藏集
-            </button>
             <button onclick="clearAllExamHistory()" style="font-size: 0.8rem; padding: 5px 10px">
               清除考试记录
             </button>
+            <button onclick="exportAllData()" style="font-size: 0.8rem; padding: 5px 10px">
+              导出数据
+            </button>
+            <button onclick="importAllData()" style="font-size: 0.8rem; padding: 5px 10px">
+              导入数据
+            </button>
+            <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)" />
           </div>
         </div>
 
@@ -12949,108 +12950,6 @@
       }
 
       // --- 导入导出功能 ---
-      function exportFavorites() {
-        // 获取所有词库的收藏和纠错数据
-        const allFavorites = {}
-        const allErrors = {}
-
-        // 遍历所有词库，收集收藏和纠错数据
-        dataSource.forEach((lib) => {
-          const favKey = `fav_${lib.name}`
-          const errKey = `err_${lib.name}`
-
-          const favData = JSON.parse(localStorage.getItem(favKey) || '[]')
-          const errData = JSON.parse(localStorage.getItem(errKey) || '[]')
-
-          if (favData.length > 0) {
-            allFavorites[lib.name] = favData
-          }
-          if (errData.length > 0) {
-            allErrors[lib.name] = errData
-          }
-        })
-
-        // 创建导出数据结构，包含所有词库的收藏数据
-        const exportData = {
-          name: '用户收藏集',
-          type: '用户自定义',
-          description: '导出的所有词库收藏和纠错数据',
-          timestamp: new Date().toISOString(),
-          favorites: allFavorites,
-          errors: allErrors
-        }
-
-        // 创建下载链接
-        const dataStr = JSON.stringify(exportData, null, 2)
-        const dataBlob = new Blob([dataStr], { type: 'application/json' })
-        const url = URL.createObjectURL(dataBlob)
-
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `kotoba_favorites_${new Date().toISOString().split('T')[0]}.json`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
-
-        alert('收藏集导出成功！')
-      }
-
-      function importFavorites() {
-        // 创建文件输入元素
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = '.json'
-
-        input.onchange = (event) => {
-          const file = event.target.files[0]
-          if (!file) return
-
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            try {
-              const importData = JSON.parse(e.target.result)
-
-              // 验证导入数据格式
-              if (!importData.favorites || !importData.errors) {
-                throw new Error('无效的导入文件格式')
-              }
-
-              // 计算总收藏和纠错数量
-              let totalFavs = 0
-              let totalErrs = 0
-              Object.values(importData.favorites).forEach((favs) => (totalFavs += favs.length))
-              Object.values(importData.errors).forEach((errs) => (totalErrs += errs.length))
-
-              // 确认导入
-              if (
-                confirm(
-                  `是否导入收藏集？\n收藏: ${totalFavs} 个（${Object.keys(importData.favorites).length} 个词库）\n纠错: ${totalErrs} 个（${Object.keys(importData.errors).length} 个词库）`
-                )
-              ) {
-                // 导入数据到对应的词库
-                Object.entries(importData.favorites).forEach(([libName, favData]) => {
-                  localStorage.setItem(`fav_${libName}`, JSON.stringify(favData))
-                })
-
-                Object.entries(importData.errors).forEach(([libName, errData]) => {
-                  localStorage.setItem(`err_${libName}`, JSON.stringify(errData))
-                })
-
-                updateUI()
-                alert('导入成功！')
-              }
-            } catch (error) {
-              alert('导入失败：' + error.message)
-            }
-          }
-
-          reader.readAsText(file)
-        }
-
-        input.click()
-      }
-
       // --- 考试模式 ---
       let examState = null // 考试状态对象
 
@@ -14149,6 +14048,77 @@
         })
         alert('考试记录已清除')
         updateUI()
+      }
+
+      // 导出所有localStorage数据
+      function exportAllData() {
+        const data = {}
+        const keys = [
+          'theme',
+          'exam_settings',
+          'favorites_export',
+          'word_progress'
+        ]
+        // 导出所有词库的收藏、考试记录
+        dataSource.forEach((lib) => {
+          const favKey = `fav_${lib.name}`
+          const historyKey = `exam_history_${lib.name}`
+          const favHistoryKey = `exam_history_fav_${lib.name}`
+          ;[favKey, historyKey, favHistoryKey].forEach((k) => {
+            const val = localStorage.getItem(k)
+            if (val !== null) data[k] = val
+          })
+        })
+        // 导出通用keys
+        keys.forEach((k) => {
+          const val = localStorage.getItem(k)
+          if (val !== null) data[k] = val
+        })
+        // 导出当前进度
+        dataSource.forEach((lib) => {
+          const progressKey = `progress_${lib.name}`
+          const val = localStorage.getItem(progressKey)
+          if (val !== null) data[progressKey] = val
+        })
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `kotoba-backup-${new Date().toISOString().slice(0, 10)}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+
+      // 触发导入文件选择
+      function importAllData() {
+        document.getElementById('import-file-input').click()
+      }
+
+      // 处理导入文件
+      function handleImportFile(event) {
+        const file = event.target.files[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const data = JSON.parse(e.target.result)
+            if (typeof data !== 'object' || data === null) {
+              alert('文件格式错误')
+              return
+            }
+            if (!confirm('导入数据将覆盖当前所有设置、收藏和考试记录，确定继续？')) return
+            Object.entries(data).forEach(([key, value]) => {
+              localStorage.setItem(key, value)
+            })
+            alert('导入成功！页面将刷新以应用新数据。')
+            location.reload()
+          } catch (err) {
+            alert('文件解析失败：' + err.message)
+          }
+        }
+        reader.readAsText(file)
+        event.target.value = ''
       }
 
       // 退出考试
