@@ -69,6 +69,20 @@
         justify-content: center;
         min-height: 100vh;
         line-height: 1.6;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      body::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* 全局隐藏滚动条 */
+      * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      *::-webkit-scrollbar {
+        display: none;
       }
 
       /* 顶部导航 */
@@ -490,6 +504,8 @@
       .exam-option:hover {
         border-color: var(--text-color);
         background: var(--option-hover-bg);
+        transform: scale(1.06);
+        font-size: 1.1rem;
       }
       .exam-option.correct {
         border-color: #4caf50;
@@ -510,11 +526,18 @@
         font-size: 0.9rem;
         min-height: 24px;
       }
-      .exam-next-btn {
+      .exam-nav-btns {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
         margin-top: 25px;
+      }
+      .exam-nav-btns button {
         padding: 10px 30px;
         font-size: 0.95rem;
         cursor: pointer;
+      }
+      .exam-next-btn {
         display: none;
       }
       .exam-next-btn.show {
@@ -748,7 +771,10 @@
         <div class="exam-question-word" id="exam-question"></div>
         <div class="exam-options" id="exam-options"></div>
         <div class="exam-feedback" id="exam-feedback"></div>
-        <button class="exam-next-btn" id="exam-next-btn" onclick="nextExamQuestion()">下一题 →</button>
+        <div class="exam-nav-btns">
+          <button id="exam-prev-btn" onclick="prevExamQuestion()" style="display:none">← 上一题</button>
+          <button class="exam-next-btn" id="exam-next-btn" onclick="nextExamQuestion()">下一题 →</button>
+        </div>
       </div>
     </div>
 
@@ -13331,7 +13357,9 @@
           correct: 0,
           wrong: 0,
           wrongList: [],
-          answered: false
+          answered: false,
+          _answers: {}, // 记录每道题的选择结果，用于回显
+          _maxReached: 0 // 记录用户到达过的最大题号
         }
 
         closeExamSetup()
@@ -13373,8 +13401,9 @@
           questionEl.innerHTML = meaning
         }
 
-        // 生成4个选项
-        const options = generateOptions(q, direction, examState.lib)
+        // 生成4个选项（已答过的题使用保存的选项顺序）
+        const savedAnswer = examState._answers ? examState._answers[examState.currentQ] : null
+        const options = savedAnswer ? savedAnswer.allOptions : generateOptions(q, direction, examState.lib)
         const optionsEl = document.getElementById('exam-options')
         optionsEl.innerHTML = ''
 
@@ -13398,10 +13427,40 @@
           optionsEl.appendChild(div)
         })
 
-        // 重置状态
-        examState.answered = false
-        document.getElementById('exam-feedback').innerHTML = ''
-        document.getElementById('exam-next-btn').classList.remove('show')
+        // 恢复或重置状态
+        if (savedAnswer) {
+          // 回看已答过的题，恢复选择结果
+          examState.answered = true
+          document.getElementById('exam-feedback').innerHTML = savedAnswer.feedbackHTML
+          document.getElementById('exam-next-btn').classList.add('show')
+
+          // 恢复选项高亮
+          const optionEls = document.querySelectorAll('#exam-options .exam-option')
+          optionEls.forEach((el, i) => {
+            el.classList.add('disabled')
+            if (savedAnswer.allOptions[i].isCorrect) {
+              el.classList.add('correct')
+            }
+          })
+          if (!savedAnswer.isCorrect && optionEls[savedAnswer.optIdx]) {
+            optionEls[savedAnswer.optIdx].classList.add('wrong')
+          }
+        } else {
+          // 新题，重置
+          examState.answered = false
+          document.getElementById('exam-feedback').innerHTML = ''
+          document.getElementById('exam-next-btn').classList.remove('show')
+        }
+
+        // 上一题按钮：第一题隐藏，否则显示
+        const prevBtn = document.getElementById('exam-prev-btn')
+        prevBtn.style.display = examState.currentQ > 0 ? 'inline-block' : 'none'
+
+        // 下一题按钮：已答过的题显示，未答过且已是最后一题隐藏
+        const nextBtn = document.getElementById('exam-next-btn')
+        if (examState.currentQ < examState._maxReached) {
+          nextBtn.classList.add('show')
+        }
 
         // 预加载音频缓存：首次加载当前题+后5题，之后每次切换补充新的
         prefetchAudioBatch()
@@ -13649,6 +13708,16 @@
         }
 
         document.getElementById('exam-feedback').innerHTML = feedbackHTML
+
+        // 保存选择结果，用于回显
+        if (!examState._answers) examState._answers = {}
+        examState._answers[examState.currentQ] = {
+          optIdx: optIdx,
+          option: option,
+          allOptions: allOptions,
+          feedbackHTML: feedbackHTML,
+          isCorrect: option.isCorrect
+        }
 
         // 朗读单词和解释：播放预请求的音频
         playPrefetchedAudio()
@@ -13900,17 +13969,30 @@
         }
       }
 
+      // 上一题
+      function prevExamQuestion() {
+        if (!examState) return
+        if (examState.currentQ <= 0) return
+
+        examState.currentQ--
+        renderExamQuestion()
+      }
+
       // 下一题
       function nextExamQuestion() {
         if (!examState) return
 
-        examState.currentQ++
-
-        if (examState.currentQ >= examState.total) {
-          // 考试结束
-          showExamResult()
-        } else {
+        // 只能前进到已回答过的题+1
+        const maxReached = examState._maxReached || 0
+        if (examState.currentQ < maxReached + 1 && examState.currentQ < examState.total - 1) {
+          examState.currentQ++
+          if (examState.currentQ > maxReached) {
+            examState._maxReached = examState.currentQ
+          }
           renderExamQuestion()
+        } else if (examState.answered && examState.currentQ >= examState.total - 1) {
+          // 最后一题已回答，结束考试
+          showExamResult()
         }
       }
 
@@ -13966,13 +14048,22 @@
             const qWord = item.word.w
             const meaning = getPureMeaning(item.word.c, examState.libName)
             const translation = getChineseTranslation(item.word.c, examState.libName)
-            html += `<div class="exam-wrong-item">
+            html += `<div class="exam-wrong-item" style="cursor:pointer" data-wrong-idx="${idx}">
               <div class="wrong-q">${idx + 1}. ${item.direction === 'jp2cn' ? qWord : meaning}</div>
               <div class="wrong-a">→ ${item.direction === 'jp2cn' ? meaning : qWord}（${translation}）</div>
             </div>`
           })
           wrongListEl.innerHTML = html
           wrongListEl.style.display = 'block'
+
+          // 绑定点击事件
+          wrongListEl.querySelectorAll('.exam-wrong-item').forEach((el) => {
+            el.onclick = () => {
+              const idx = parseInt(el.dataset.wrongIdx)
+              const word = examState.wrongList[idx].word
+              showOptionDetail({ word })
+            }
+          })
         } else {
           wrongListEl.innerHTML = ''
           wrongListEl.style.display = 'none'
@@ -14051,6 +14142,15 @@
               e.preventDefault()
               nextExamQuestion()
             }
+          }
+          // 左右箭头切换题目
+          if (e.key === 'ArrowLeft') {
+            e.preventDefault()
+            prevExamQuestion()
+          }
+          if (e.key === 'ArrowRight') {
+            e.preventDefault()
+            nextExamQuestion()
           }
           return
         }
