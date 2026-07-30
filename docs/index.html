@@ -12714,7 +12714,7 @@
 
         // 根据语言选择语音模型
         const voice = lang === 'zh-CN' ? 'zh-CN-XiaozhenNeural' : 'ja-JP-MayuNeural'
-        const speed = lang === 'zh-CN' ? 1 : 1
+        const speed = 1.3
 
         try {
           const response = await fetch('https://tts.wangwangit.com/v1/audio/speech', {
@@ -13857,7 +13857,7 @@
           }
 
           const voice = lang === 'zh-CN' ? 'zh-CN-XiaozhenNeural' : 'ja-JP-MayuNeural'
-          const speed = 1
+          const speed = 1.3
 
           fetch('https://tts.wangwangit.com/v1/audio/speech', {
             method: 'POST',
@@ -13905,7 +13905,7 @@
           }
 
           const voice = lang === 'zh-CN' ? 'zh-CN-XiaozhenNeural' : 'ja-JP-MayuNeural'
-          const speed = lang === 'zh-CN' ? 1 : 1
+          const speed = 1.3
 
           fetch('https://tts.wangwangit.com/v1/audio/speech', {
             method: 'POST',
