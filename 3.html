@@ -12762,22 +12762,18 @@
       function speakWord() {
         if (!words.length) return
         const word = words[currentIndex]
-        let textToSpeak = word.w.trim()
+        let textToSpeak = getSpeakJPText(word, currentLibName)
 
         // 语音朗读时替换：N → めいし，V → どうし（如果N或V在末尾，不加"+"），/符号添加停顿
-        // 先处理N+数字+/出现在句中的情况（末尾不加+）
         textToSpeak = textToSpeak
           .replace(/\bN(\d+)\s*\//g, 'めいし$1/')
           .replace(/\bV(\d+)\s*\//g, 'どうし$1/')
-        // 再处理末尾的N/V
         textToSpeak = textToSpeak.replace(/\bN$/g, 'めいし').replace(/\bV$/g, 'どうし')
-        // 然后处理N1/N2/N3等带数字的情况
         textToSpeak = textToSpeak
           .replace(/\bN(\d+)/g, 'めいし$1+')
           .replace(/\bV(\d+)/g, 'どうし$1+')
-        // 最后处理单独的N/V（不在末尾）
         textToSpeak = textToSpeak.replace(/\bN(?!$)/g, 'めいし+').replace(/\bV(?!$)/g, 'どうし+')
-        textToSpeak = textToSpeak.replace(/\//g, '。/。') // 在/符号前后添加空格产生停顿效果
+        textToSpeak = textToSpeak.replace(/\//g, '。/。')
 
         if (textToSpeak) {
           speakWithAPI(textToSpeak, 'ja-JP')
@@ -13184,7 +13180,7 @@
         if (!detailCurrentWord) return
         const word = detailCurrentWord
         const meaningText = getChineseTranslation(word.c, examState.libName)
-        speakWordAndMeaning(word.w, meaningText)
+        speakWordAndMeaning(word, meaningText, examState.libName)
       }
 
       // 关闭选项详情弹窗（点击遮罩关闭）
@@ -13197,6 +13193,17 @@
       // 判断是否为单词类词库（N1单词/N2单词），格式为"读音 \n 词性 中文释义"
       function isWordLib(libName) {
         return libName === 'N1单词' || libName === 'N2单词'
+      }
+
+      // 获取朗读用的日语文本：单词类词库用假名，语法类用原词
+      function getSpeakJPText(word, libName) {
+        if (isWordLib(libName)) {
+          const lines = word.c.split('\n')
+          const kana = lines.length >= 1 ? lines[0].trim() : ''
+          // 如果假名是英文/片假名词源（如almond, engineer等），则读原词
+          if (kana && !/^[a-zA-Z]/.test(kana)) return kana
+        }
+        return word.w.trim()
       }
 
       // 提取语法词库的例句（取"例："和"译："行，去掉标签）
@@ -13434,12 +13441,25 @@
           document.getElementById('exam-feedback').innerHTML = savedAnswer.feedbackHTML
           document.getElementById('exam-next-btn').classList.add('show')
 
-          // 恢复选项高亮
+          // 恢复选项高亮和翻译
           const optionEls = document.querySelectorAll('#exam-options .exam-option')
           optionEls.forEach((el, i) => {
             el.classList.add('disabled')
             if (savedAnswer.allOptions[i].isCorrect) {
               el.classList.add('correct')
+            }
+            // 恢复翻译显示
+            if (isWordLib(examState.libName)) {
+              const opt = savedAnswer.allOptions[i]
+              const lines = opt.word.c.split('\n')
+              const meaning = lines.length >= 2 ? lines[1].trim() : ''
+              if (meaning) {
+                const transSpan = document.createElement('span')
+                transSpan.className = 'exam-option-trans'
+                transSpan.textContent = ` — ${meaning}`
+                transSpan.style.cssText = 'opacity:0.7;font-size:0.85rem;word-break:break-all'
+                el.appendChild(transSpan)
+              }
             }
           })
           if (!savedAnswer.isCorrect && optionEls[savedAnswer.optIdx]) {
@@ -13485,7 +13505,7 @@
           const q = examState.questions[i]
           const meaningText = getChineseTranslation(q.c, examState.libName)
 
-          let jpText = q.w.trim()
+          let jpText = getSpeakJPText(q, examState.libName)
           jpText = jpText
             .replace(/\bN(\d+)\s*\//g, 'めいし$1/')
             .replace(/\bV(\d+)\s*\//g, 'どうし$1/')
@@ -13699,6 +13719,22 @@
           })
         }
 
+        // 对单词类词库，在每个选项右侧显示翻译
+        if (isWordLib(examState.libName)) {
+          optionEls.forEach((el, i) => {
+            const opt = allOptions[i]
+            const lines = opt.word.c.split('\n')
+            const meaning = lines.length >= 2 ? lines[1].trim() : ''
+            if (meaning) {
+              const transSpan = document.createElement('span')
+              transSpan.className = 'exam-option-trans'
+              transSpan.textContent = ` — ${meaning}`
+              transSpan.style.cssText = 'opacity:0.7;font-size:0.85rem;word-break:break-all'
+              el.appendChild(transSpan)
+            }
+          })
+        }
+
         // 对语法类词库，显示例句
         if (!isWordLib(examState.libName)) {
           const exampleText = getExampleText(q.c)
@@ -13733,15 +13769,15 @@
         if (!blobs || blobs === 'loading') {
           const q = examState.questions[examState.currentQ]
           const meaningText = getChineseTranslation(q.c, examState.libName)
-          speakWordAndMeaning(q.w, meaningText)
+          speakWordAndMeaning(q, meaningText, examState.libName)
           return
         }
         await playAudioSequence(blobs.jpBlob, blobs.cnBlob)
       }
 
       // 依次朗读日语单词和中文解释（两个音频请求并行发出）
-      async function speakWordAndMeaning(word, meaning) {
-        let jpText = word.trim()
+      async function speakWordAndMeaning(wordObj, meaning, libName) {
+        let jpText = getSpeakJPText(wordObj, libName || examState?.libName || '')
         jpText = jpText
           .replace(/\bN(\d+)\s*\//g, 'めいし$1/')
           .replace(/\bV(\d+)\s*\//g, 'どうし$1/')
