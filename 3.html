@@ -12900,27 +12900,23 @@
       }
 
       function loadFavoritesMode() {
-        // 获取所有词库的收藏单词
-        const allFavorites = []
+        // 获取当前词库的收藏单词
+        const favKey = `fav_${currentLibName}`
+        const favWords = JSON.parse(localStorage.getItem(favKey) || '[]')
 
-        dataSource.forEach((lib) => {
-          const favKey = `fav_${lib.name}`
-          const favWords = JSON.parse(localStorage.getItem(favKey) || '[]')
-
-          // 为每个收藏单词找到完整的单词对象
+        const currentLib = dataSource.find((l) => l.name === currentLibName)
+        const favorites = []
+        if (currentLib) {
           favWords.forEach((wordW) => {
-            const wordObj = lib.words.find((w) => w.w === wordW)
+            const wordObj = currentLib.words.find((w) => w.w === wordW)
             if (wordObj) {
-              allFavorites.push({
-                ...wordObj,
-                sourceLib: lib.name // 记录来源词库
-              })
+              favorites.push({ ...wordObj, sourceLib: currentLibName })
             }
           })
-        })
+        }
 
-        if (allFavorites.length === 0) {
-          alert('暂无收藏单词，请先收藏一些单词再切换到收藏模式')
+        if (favorites.length === 0) {
+          alert('当前词库暂无收藏单词，请先收藏一些单词再切换到收藏模式')
           studyMode = 'normal'
           document.getElementById('mode-btn').innerHTML = '📚 普通模式'
           return
@@ -12928,7 +12924,7 @@
 
         // 设置收藏模式的单词列表
         const currentWord = words.length > 0 ? words[currentIndex] : null
-        words = allFavorites
+        words = favorites
 
         // 保持当前索引位置，如果当前单词还在新列表中，保持原位置；否则调整到index+1
         if (currentWord && words.length > 0) {
