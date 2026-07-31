@@ -13598,6 +13598,15 @@
         if (option.isCorrect) {
           examState.correct++
           feedbackHTML = '<span style="color:#4caf50">✅ 正确！</span>'
+          // 收藏模式下答对自动取消收藏，并从已考记录中移除
+          if (examState.scope === 'favorites') {
+            const removed = removeFromFavorites(q)
+            if (removed) {
+              feedbackHTML += ' <span style="font-size:0.85rem;opacity:0.7">(已移出收藏)</span>'
+              // 从已考记录中移除该单词
+              removeFromExamHistory(q)
+            }
+          }
         } else {
           examState.wrong++
           // 高亮用户选择的错误选项
@@ -13903,6 +13912,38 @@
           favs.push(word.w)
           localStorage.setItem(favKey, JSON.stringify(favs))
         }
+      }
+
+      // 从收藏中移除，返回是否成功
+      function removeFromFavorites(word) {
+        const libName = examState.libName
+        const favKey = `fav_${libName}`
+        let favs = JSON.parse(localStorage.getItem(favKey) || '[]')
+        const idx = favs.indexOf(word.w)
+        if (idx !== -1) {
+          favs.splice(idx, 1)
+          localStorage.setItem(favKey, JSON.stringify(favs))
+          return true
+        }
+        return false
+      }
+
+      // 从已考记录中移除该单词
+      function removeFromExamHistory(word) {
+        const libName = examState.libName
+        const gIdx = examState.lib.words.findIndex((w) => w.w === word.w)
+        if (gIdx === -1) return
+
+        // 从普通考试记录和收藏考试记录中同时移除
+        const keys = [`exam_history_${libName}`, `exam_history_fav_${libName}`]
+        keys.forEach((key) => {
+          const history = JSON.parse(localStorage.getItem(key) || '[]')
+          const idx = history.indexOf(gIdx)
+          if (idx !== -1) {
+            history.splice(idx, 1)
+            localStorage.setItem(key, JSON.stringify(history))
+          }
+        })
       }
 
       // 上一题
