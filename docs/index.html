@@ -3,35 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>言葉 - 极简背诵</title>
+    <title>言葉 - 物哀背诵</title>
     <style>
       :root {
-        --bg-color: #ffffff;
-        --text-color: #000000;
-        --accent-color: #f0f0f0;
-        --border-color: #000000;
-        --modal-bg: rgba(255, 255, 255, 0.98);
-        --config-bg: #f9f9f9;
-        --config-border: #eee;
-        --option-bg: #fff;
-        --option-hover-bg: #f9f9f9;
-        --option-border: #ccc;
-        --exam-card-bg: #fff;
-        --feedback-bg: #f9f9f9;
+        --bg-color: #faf6f0;          /* 和纸米白 */
+        --text-color: #4a4238;        /* 墨色 */
+        --accent-color: #efe8dc;      /* 淡茶 */
+        --border-color: #cfc4b2;      /* 淡墨 */
+        --modal-bg: rgba(250, 246, 240, 0.98);
+        --config-bg: #f3ede3;
+        --config-border: #ddd2c2;
+        --option-bg: #fffdf9;
+        --option-hover-bg: #f3ede3;
+        --option-border: #d8cdbc;
+        --exam-card-bg: #fffdf9;
+        --feedback-bg: #f3ede3;
+        --accent-pink: #d4a5a5;       /* 淡樱 */
+        --accent-ink: #6b5d52;        /* 浓墨 */
+        --success: #7d8f69;           /* 苔绿 */
+        --danger: #b0605a;            /* 胭脂 */
+        --shadow: rgba(74, 66, 56, 0.08);
       }
       body.dark {
-        --bg-color: #000000;
-        --text-color: #ffffff;
-        --accent-color: #1a1a1a;
-        --border-color: #444444;
-        --modal-bg: rgba(0, 0, 0, 0.98);
-        --config-bg: #111111;
-        --config-border: #333333;
-        --option-bg: #111111;
-        --option-hover-bg: #222222;
-        --option-border: #444444;
-        --exam-card-bg: #111111;
-        --feedback-bg: #111111;
+        --bg-color: #1b1815;          /* 夜墨 */
+        --text-color: #e6dfd3;        /* 米白 */
+        --accent-color: #26211d;
+        --border-color: #4a4238;
+        --modal-bg: rgba(27, 24, 21, 0.98);
+        --config-bg: #221e1a;
+        --config-border: #3a342e;
+        --option-bg: #221e1a;
+        --option-hover-bg: #2e2924;
+        --option-border: #4a4238;
+        --exam-card-bg: #221e1a;
+        --feedback-bg: #221e1a;
+        --accent-pink: #b08989;
+        --accent-ink: #cfc4b2;
+        --success: #9aab7e;
+        --danger: #d08a84;
+        --shadow: rgba(0, 0, 0, 0.3);
       }
       /* 暗色模式下图标可见度提升 */
       body.dark .action-btns span {
@@ -44,23 +54,24 @@
         opacity: 0.9;
       }
       body.dark .word-list li:hover {
-        background: #fff;
-        color: #000;
+        background: var(--accent-pink);
+        color: var(--bg-color);
       }
       body.dark .exam-btn-primary {
-        background: #fff;
-        color: #000;
-        border-color: #fff;
+        background: var(--text-color);
+        color: var(--bg-color);
+        border-color: var(--text-color);
       }
       body.dark .exam-btn-primary:hover {
-        background: #ccc;
-        color: #000;
+        background: var(--accent-pink);
+        color: var(--bg-color);
+        border-color: var(--accent-pink);
       }
 
       body {
         margin: 0;
         padding: 0;
-        font-family: 'Hiragino Mincho ProN', 'MS Mincho', serif;
+        font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'MS Mincho', 'STSong', serif;
         background-color: var(--bg-color);
         color: var(--text-color);
         display: flex;
@@ -68,9 +79,20 @@
         align-items: center;
         justify-content: center;
         min-height: 100vh;
-        line-height: 1.6;
+        line-height: 1.8;
         -ms-overflow-style: none;
         scrollbar-width: none;
+        /* 和纸纹理 */
+        background-image:
+          radial-gradient(ellipse 40% 30% at 15% 10%, rgba(212, 165, 165, 0.08), transparent),
+          radial-gradient(ellipse 35% 25% at 85% 90%, rgba(107, 93, 82, 0.05), transparent);
+        background-attachment: fixed;
+        transition: background-color 0.4s ease, color 0.4s ease;
+      }
+      body.dark {
+        background-image:
+          radial-gradient(ellipse 40% 30% at 15% 10%, rgba(176, 137, 137, 0.06), transparent),
+          radial-gradient(ellipse 35% 25% at 85% 90%, rgba(207, 196, 178, 0.04), transparent);
       }
       body::-webkit-scrollbar {
         display: none;
@@ -90,7 +112,7 @@
         position: fixed;
         top: 0;
         width: 100%;
-        padding: 20px;
+        padding: 22px 30px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -98,34 +120,47 @@
         border-bottom: 1px solid var(--border-color);
         background: var(--bg-color);
         z-index: 10;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
       }
       .header-right {
         display: flex;
         align-items: center;
-        gap: 15px;
+        gap: 20px;
       }
       .theme-btn {
         cursor: pointer;
-        font-size: 1.1rem;
+        font-size: 1rem;
         background: transparent;
         border: 1px solid var(--border-color);
-        padding: 3px 8px;
-        border-radius: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
         line-height: 1;
+        letter-spacing: 1px;
       }
       .theme-btn:hover {
-        background: var(--text-color);
+        background: var(--accent-pink);
+        border-color: var(--accent-pink);
         color: var(--bg-color);
       }
 
       .logo {
-        font-weight: bold;
-        letter-spacing: 2px;
+        font-weight: 500;
+        letter-spacing: 6px;
+        font-size: 1.15rem;
+        color: var(--accent-ink);
       }
       .settings-btn {
         cursor: pointer;
-        text-decoration: underline;
-        font-size: 0.9em;
+        font-size: 0.85em;
+        letter-spacing: 1px;
+        padding-bottom: 2px;
+        border-bottom: 1px solid transparent;
+        transition: all 0.3s;
+      }
+      .settings-btn:hover {
+        border-bottom-color: var(--accent-pink);
+        color: var(--accent-ink);
       }
 
       /* 主体内容 */
@@ -133,13 +168,14 @@
         text-align: center;
         max-width: 600px;
         width: 90%;
-        margin-top: 80px;
+        margin-top: 90px;
       }
       #word-display {
         font-size: 3rem;
         margin-bottom: 20px;
-        font-weight: 500;
+        font-weight: 400;
         min-height: 80px;
+        letter-spacing: 3px;
       }
 
       /* 收藏纠错动作按钮 */
@@ -172,16 +208,19 @@
       .speak-btn-small {
         background: transparent;
         border: 1px solid var(--border-color);
-        padding: 4px 8px;
+        padding: 4px 10px;
         font-family: inherit;
         cursor: pointer;
         transition: all 0.3s;
         font-size: 0.8rem;
-        border-radius: 3px;
+        border-radius: 20px;
+        opacity: 0.6;
       }
       .speak-btn-small:hover {
-        background: var(--text-color);
+        background: var(--accent-pink);
+        border-color: var(--accent-pink);
         color: var(--bg-color);
+        opacity: 1;
       }
       .content-line {
         display: flex;
@@ -204,37 +243,45 @@
       #mode-btn {
         background: var(--accent-color);
         border: 1px solid var(--border-color);
-        padding: 5px 10px;
-        border-radius: 3px;
+        padding: 5px 14px;
+        border-radius: 20px;
         font-size: 0.9rem;
+        letter-spacing: 1px;
+        transition: all 0.3s;
       }
       #mode-btn:hover {
-        background: #000;
-        color: #fff;
+        background: var(--accent-ink);
+        border-color: var(--accent-ink);
+        color: var(--bg-color);
       }
 
       #content-display {
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         text-align: left;
         margin-bottom: 40px;
-        padding: 20px;
-        border-left: 2px solid var(--border-color);
+        padding: 20px 24px;
+        border-left: 2px solid var(--accent-pink);
         min-height: 100px;
         display: none;
+        background: var(--config-bg);
+        border-radius: 0 8px 8px 0;
       }
 
       button {
         background: transparent;
         border: 1px solid var(--border-color);
         color: var(--text-color);
-        padding: 10px 20px;
+        padding: 10px 22px;
         font-family: inherit;
         cursor: pointer;
         transition: all 0.3s;
         margin: 5px;
+        letter-spacing: 1px;
+        border-radius: 4px;
       }
       button:hover {
-        background: var(--text-color);
+        background: var(--accent-ink);
+        border-color: var(--accent-ink);
         color: var(--bg-color);
       }
 
@@ -251,8 +298,8 @@
         border: 1px solid var(--border-color);
       }
       .import-export-buttons button:hover {
-        background: #000;
-        color: #fff;
+        background: var(--accent-ink);
+        color: var(--bg-color);
       }
       .show-btn {
         font-size: 1.2rem;
@@ -278,18 +325,21 @@
         padding: 20px;
       }
       .modal-header {
-        border-bottom: 2px solid var(--border-color);
-        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 12px;
         margin-bottom: 20px;
         display: flex;
         justify-content: space-between;
+        letter-spacing: 3px;
+        color: var(--accent-ink);
       }
 
       .config-section {
         background: var(--config-bg);
-        padding: 15px;
+        padding: 18px;
         margin-bottom: 20px;
         border: 1px solid var(--config-border);
+        border-radius: 8px;
       }
       input {
         width: 100%;
@@ -329,8 +379,8 @@
         font-size: 0.9rem;
       }
       .word-list li:hover {
-        background: #000;
-        color: #fff;
+        background: var(--accent-pink);
+        color: var(--bg-color);
       }
 
       .close-modal {
@@ -341,6 +391,14 @@
         font-size: 0.8rem;
         margin-top: 10px;
         opacity: 0.6;
+        letter-spacing: 1px;
+      }
+      .foot-verse {
+        margin-top: 30px;
+        font-size: 0.75rem;
+        letter-spacing: 8px;
+        opacity: 0.3;
+        font-style: italic;
       }
       hr {
         border: 0;
@@ -373,11 +431,13 @@
       }
       .exam-setup-content {
         background: var(--exam-card-bg);
-        border: 2px solid var(--border-color);
+        border: 1px solid var(--border-color);
         padding: 30px 40px;
         max-width: 450px;
         width: 90%;
         text-align: center;
+        border-radius: 10px;
+        box-shadow: 0 8px 30px var(--shadow);
       }
       .exam-setup-content h3 {
         margin-top: 0;
@@ -498,27 +558,28 @@
         color: var(--text-color);
         text-align: left;
         font-size: 1rem;
-        transition: all 0.2s;
-        border-radius: 4px;
+        transition: all 0.25s ease;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px var(--shadow);
       }
       .exam-option:hover {
-        border-color: var(--text-color);
+        border-color: var(--accent-pink);
         background: var(--option-hover-bg);
-        transform: scale(1.06);
-        font-size: 1.1rem;
+        transform: scale(1.04);
+        font-size: 1.08rem;
+        box-shadow: 0 4px 12px var(--shadow);
       }
       .exam-option.correct {
-        border-color: #4caf50;
-        background: #e8f5e9;
-        color: #2e7d32;
+        border-color: var(--success);
+        background: rgba(125, 143, 105, 0.12);
+        color: var(--success);
       }
       .exam-option.wrong {
-        border-color: #f44336;
-        background: #ffebee;
-        color: #c62828;
+        border-color: var(--danger);
+        background: rgba(176, 96, 90, 0.12);
+        color: var(--danger);
       }
       .exam-option.disabled {
-        opacity: 0.7;
         opacity: 0.7;
       }
       .exam-feedback {
@@ -552,7 +613,7 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0,0,0,0.4);
+        background: rgba(27, 24, 21, 0.45);
         z-index: 300;
         justify-content: center;
         align-items: center;
@@ -562,13 +623,15 @@
       }
       .option-detail-card {
         background: var(--exam-card-bg);
-        border: 2px solid var(--border-color);
+        border: 1px solid var(--border-color);
         padding: 25px 30px;
         max-width: 500px;
         width: 90%;
         max-height: 80vh;
         overflow-y: auto;
         line-height: 1.8;
+        border-radius: 10px;
+        box-shadow: 0 8px 30px var(--shadow);
       }
       .option-detail-card h4 {
         margin: 0 0 15px 0;
@@ -612,8 +675,9 @@
         color: var(--bg-color);
       }
       .option-detail-actions button.fav-active {
-        background: #ffd700;
-        border-color: #ffd700;
+        background: var(--accent-pink);
+        border-color: var(--accent-pink);
+        color: var(--bg-color);
       }
 
       /* 考试结果 */
@@ -677,7 +741,7 @@
         font-weight: bold;
       }
       .exam-wrong-item .wrong-a {
-        color: #c62828;
+        color: var(--danger);
         font-size: 0.85rem;
       }
       .exam-result-btns {
@@ -721,6 +785,7 @@
         <button onclick="nextWord()">NEXT →</button>
       </div>
       <div class="progress" id="progress-text">0 / 0</div>
+      <div class="foot-verse" aria-hidden="true">— もののあはれ —</div>
     </main>
 
     <!-- 考试设置弹窗 -->
@@ -13593,7 +13658,7 @@
         let feedbackHTML = ''
         if (option.isCorrect) {
           examState.correct++
-          feedbackHTML = '<span style="color:#4caf50">✅ 正确！</span>'
+          feedbackHTML = '<span style="color:var(--success)">✅ 正确！</span>'
           // 收藏模式下答对自动取消收藏，并从已考记录中移除
           if (examState.scope === 'favorites') {
             const removed = removeFromFavorites(q)
@@ -13612,7 +13677,7 @@
 
           // 显示正确答案
           const correctText = correctOption.text
-          feedbackHTML = `<span style="color:#c62828">❌ 错误！正确答案是：<strong>${correctText}</strong></span>`
+          feedbackHTML = `<span style="color:var(--danger)">❌ 错误！正确答案是：<strong>${correctText}</strong></span>`
 
           // 自动加入收藏
           autoAddToFavorites(q)
