@@ -23,8 +23,6 @@
         --success: #7d8f69; /* 苔绿 */
         --danger: #b0605a; /* 胭脂 */
         --shadow: rgba(74, 66, 56, 0.08);
-        --theme-glow: none;
-        --theme-grid: none;
       }
       body.dark {
         --bg-color: #1b1815; /* 夜墨 */
@@ -44,73 +42,6 @@
         --success: #9aab7e;
         --danger: #d08a84;
         --shadow: rgba(0, 0, 0, 0.3);
-      }
-      /* ===== 赛博朋克大主题 ===== */
-      body.cyber {
-        --bg-color: #0a0a14; /* 深夜蓝黑 */
-        --text-color: #00e5ff; /* 霓虹青 */
-        --accent-color: #141428;
-        --border-color: #ff00e5; /* 霓虹品红 */
-        --modal-bg: rgba(10, 10, 20, 0.98);
-        --config-bg: #12121f;
-        --config-border: #3a1a5e;
-        --option-bg: #12121f;
-        --option-hover-bg: #1a1a30;
-        --option-border: #00e5ff;
-        --exam-card-bg: #12121f;
-        --feedback-bg: #12121f;
-        --accent-pink: #ff00e5;
-        --accent-ink: #00e5ff;
-        --success: #00ff9d;
-        --danger: #ff3860;
-        --shadow: rgba(0, 229, 255, 0.15);
-        --theme-glow: 0 0 10px rgba(0, 229, 255, 0.4), 0 0 25px rgba(255, 0, 229, 0.2);
-        --theme-grid: linear-gradient(rgba(0, 229, 255, 0.04) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0, 229, 255, 0.04) 1px, transparent 1px);
-      }
-      body.cyber.dark {
-        --bg-color: #060610;
-        --text-color: #00ffff;
-        --accent-color: #0d0d1c;
-        --border-color: #ff00e5;
-        --modal-bg: rgba(6, 6, 16, 0.98);
-        --config-bg: #0d0d1c;
-        --config-border: #4a2070;
-        --option-bg: #0d0d1c;
-        --option-hover-bg: #181830;
-        --option-border: #00ffff;
-        --exam-card-bg: #0d0d1c;
-        --feedback-bg: #0d0d1c;
-        --accent-pink: #ff00e5;
-        --accent-ink: #00ffff;
-        --success: #00ff9d;
-        --danger: #ff3860;
-        --shadow: rgba(0, 255, 255, 0.2);
-        --theme-glow: 0 0 10px rgba(0, 255, 255, 0.5), 0 0 30px rgba(255, 0, 229, 0.3);
-        --theme-grid: linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
-      }
-      body.cyber,
-      body.cyber.dark {
-        /* 赛博网格背景 */
-        background-image: var(--theme-grid),
-          radial-gradient(ellipse 50% 35% at 20% 15%, rgba(255, 0, 229, 0.08), transparent),
-          radial-gradient(ellipse 50% 35% at 80% 85%, rgba(0, 229, 255, 0.08), transparent);
-        background-size: 40px 40px, 100% 100%, 100% 100%;
-      }
-      body.cyber .logo {
-        text-shadow: var(--theme-glow);
-      }
-      body.cyber .theme-btn {
-        text-shadow: 0 0 6px rgba(0, 229, 255, 0.6);
-      }
-      body.cyber .exam-option:hover {
-        border-color: var(--accent-pink);
-        box-shadow: 0 0 15px rgba(255, 0, 229, 0.3);
-        text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
-      }
-      body.cyber #content-display {
-        border-left-color: var(--accent-pink);
       }
       /* 暗色模式下图标可见度提升 */
       body.dark .action-btns span {
@@ -160,7 +91,7 @@
           background-color 0.4s ease,
           color 0.4s ease;
       }
-      body:not(.cyber).dark {
+      body.dark {
         background-image:
           radial-gradient(ellipse 40% 30% at 15% 10%, rgba(176, 137, 137, 0.06), transparent),
           radial-gradient(ellipse 35% 25% at 85% 90%, rgba(207, 196, 178, 0.04), transparent);
@@ -412,8 +343,7 @@
         border: 1px solid var(--config-border);
         border-radius: 8px;
       }
-      input,
-      select {
+      input {
         width: 100%;
         padding: 10px;
         border: 1px solid var(--border-color);
@@ -969,34 +899,6 @@
         <div class="modal-header">
           <span>DASHBOARD</span>
           <span class="close-modal" onclick="toggleModal(false)">[CLOSE]</span>
-        </div>
-
-        <div class="config-section">
-          <h4>主题设置</h4>
-          <div style="display: flex; gap: 20px; margin-top: 10px; flex-wrap: wrap">
-            <div style="flex: 1; min-width: 140px">
-              <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 5px">大主题</div>
-              <select
-                id="theme-style-select"
-                onchange="setThemeStyle(this.value)"
-                style="width: 100%"
-              >
-                <option value="wabi">🌸 日系物哀</option>
-                <option value="cyber">🌃 赛博朋克</option>
-              </select>
-            </div>
-            <div style="flex: 1; min-width: 140px">
-              <div style="font-size: 0.8rem; opacity: 0.6; margin-bottom: 5px">小主题</div>
-              <select
-                id="theme-mode-select"
-                onchange="setThemeMode(this.value)"
-                style="width: 100%"
-              >
-                <option value="light">☀️ 白天</option>
-                <option value="dark">🌙 黑夜</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <div class="config-section">
@@ -12673,7 +12575,7 @@
           ]
         },
         {
-          name: 'N1上课语法',
+          name: 'N1上课单词',
           words: [
             { w: '受ける', c: '① 接住\nボールを受ける\n接球' },
             { w: '受ける', c: '② 遭受\n影響（えいきょう）を受ける\n受到影响' },
@@ -13581,6 +13483,208 @@
               c: '所有権（しょゆうけん）所有权 / 決定権（けっていけん）决定权 / 選挙権（せんきょけん）选举权'
             }
           ]
+        },
+        {
+          name: '小火车理论',
+          words: [
+            {
+              w: '小火车理论',
+              c: '日语句子就像小火车一样，由一节节的车厢拼接而成（组合规律）。\n2个驱动轮 + 1个发动机 = 完整句子\n发动机：谓语\n驱动轮①：格助词\n驱动轮②：接续规律'
+            },
+            {
+              w: '套娃理论',
+              c: '日语句子的拆解规律：从外到内层层拆解，找出句子的核心成分（谓语）和各部分关系。\n例：森さんが 9月に 家族と 飛行機で 大阪から 中国へ 行きます。\n→ 谓语：行きます（发动机）\n→ 格助词：が・に・と・で・から・へ（驱动轮）'
+            },
+            {
+              w: '3大谓语句（总论）',
+              c: '日语句子按谓语类型分为3大类：\n名词谓语句：森さんが　会社員です。\n形容词谓语句：森さんが　優しいです。\n动词谓语句：森さんが　行きます。\n存在句/所在句：部屋に机といすがあります。\n鈴木さんは会議室にいます。'
+            },
+            {
+              w: '主语',
+              c: '说明主语的身份、性质、状态或动作的对象。\n主语（森さん）+ が + 谓语\n→ 谓语说明主语的（性质/状态/动作等）'
+            },
+            {
+              w: '谓语',
+              c: '日语句子的核心成分（发动机）。\n3大谓语句：名词谓语 / 形容词谓语 / 动词谓语\n例：会社員です / 優しいです / 行きます'
+            },
+            {
+              w: '格助词',
+              c: '提示句子的各个部分和谓语之间关系的助词（驱动轮）。\n9个常用格助词：を・で・に・と・が・から・まで・より・へ\n记忆口诀：鬼（おに）までが　夜（よる）からデート'
+            },
+            {
+              w: '接续规律',
+              c: '日语句子中各部分的连接要符合接续规律（驱动轮）。\n4种类型：\n形容词+形容词（綺麗で 優しい）\n名词+名词（私の 妹で 学生）\n形容词/名词+动词（美しく なる）\n动词+名词（勉強する 時間）'
+            },
+            {
+              w: '名词谓语句',
+              c: '以名词作谓语（判断句，性质/状态/身份）。\n森さんが　会社員です。\n森先生是公司职员。'
+            },
+            {
+              w: '形容词谓语句',
+              c: '以形容词作谓语（描述性质/状态）。\n森さんが　優しいです。\n森先生很温柔。'
+            },
+            { w: '动词谓语句', c: '以动词作谓语（描述动作）。\n森さんが　行きます。\n森先生去。' },
+            {
+              w: '存在句 / 所在句',
+              c: '表示某处有/无某人某物，或某人在某处。\n部屋に机といすがあります。\n房间里有桌子和椅子。\n鈴木さんは会議室にいます。\n铃木先生在会议室。'
+            },
+            {
+              w: '格助词・が（主语/主体）',
+              c: '标记句子的主语/主体。\n太郎が勉強している。\n太郎在学习。\n部屋に机といすがあります。\n房间里有桌子和椅子。'
+            },
+            {
+              w: '格助词・が（对象）',
+              c: '表示好恶、能力、欲望等情感的对象。\n春子は歌が好きです。\n春子喜欢唱歌。\n鈴木さんはフランス語ができる。\n铃木先生会法语。\n新しい洋服が欲しいです。\n想要新衣服。'
+            },
+            {
+              w: '格助词・に（时间/场所）',
+              c: '表示动作发生的时间点或存在的场所（动态场所用で）。\n私は毎日21時に寝ます。\n我每天21点睡觉。\n太郎は図書館にいる。\n太郎在图书馆。'
+            },
+            {
+              w: '格助词・に（对象/目的/目的地）',
+              c: '表示行为的对象、移动的目的与目的地。\n母は赤ちゃんに本をあげた。\n妈妈给了宝宝书。\n荷物を出しに行く。\n去取行李。\n太郎は学校に行った。\n太郎去了学校。'
+            },
+            {
+              w: '格助词・に（附着点）',
+              c: '表示动作附着、乘坐、登上的点。\n椅子に座る。\n坐在椅子上。\n電車に乗る。\n坐电车。\n山に登る。\n登山。'
+            },
+            {
+              w: '格助词・に（变化的结果）',
+              c: '表示变化后的结果状态。\n息子は医者になりました。\n儿子成为了医生。'
+            },
+            {
+              w: '格助词・に（用途/基准）',
+              c: '表示用途或评价的基准。\nこの写真はビザの申請に使う。\n这张照片用于签证申请。\nこの文章は子供には難しいです。\n这篇文章对孩子来说难。'
+            },
+            {
+              w: '格助词・で（工具/方法/手段）',
+              c: '表示动作使用的工具、手段、方法。\n鈴木さんはフランス語で小説を書く。\n铃木先生用法语写小说。\n飛行機で大阪へ行きます。\n坐飞机去大阪。'
+            },
+            {
+              w: '格助词・で（原材料）',
+              c: '表示原材料（物理变化用で；化学变化用から）。\nこれは紙でできた。\n这是用纸做的。'
+            },
+            {
+              w: '格助词・で（场所）',
+              c: '表示动作/事件发生的场所（静态存在用に）。\n太郎は庭で遊んでいる。\n太郎在院子里玩。\nこのホテルで写真展がある。\n这家酒店有摄影展。'
+            },
+            {
+              w: '格助词・で（范围/基准）',
+              c: '表示范围、期限、金额基准。\n日本で一番高い山は富士山です。\n日本最高的山是富士山。\n授業はあと1時間で終わる。\n课再过1小时就结束。\nはがきは5枚で500円です。\n明信片5张500日元。\n今年で20歳だ。\n今年20岁。'
+            },
+            {
+              w: '格助词・で（样态/状态/原因）',
+              c: '表示主体的样态、伴随的状态或原因。\nみんなで餃子を作ります。\n大家包饺子。\n傘を持たないで出かけました。\n没带伞就出门了。\n地震で電車が止まりました。\n因为地震电车停了。'
+            },
+            {
+              w: '格助词・へ（移动方向）',
+              c: '表示移动的方向（去向；到达点用に）。\n森さんは来月中国へ行きます。\n森先生下个月去中国。'
+            },
+            {
+              w: '格助词・と（共同参与者）',
+              c: '表示一起做某事的对象。\n春子は友達と帰りました。\n春子和朋友一起回去了。\n太郎は弟と喧嘩した。\n太郎和弟弟吵架了。'
+            },
+            {
+              w: '格助词・と（比较对象）',
+              c: '表示比较的对象。\n昔と違って、日本へ留学する人が増えた。\n和过去不同，去日本留学的人增多了。'
+            },
+            {
+              w: '格助词・を（动作对象）',
+              c: '表示动作涉及的对象（宾语）。\n鈴木さんは毎日コーヒーを飲む。\n铃木先生每天喝咖啡。'
+            },
+            {
+              w: '格助词・を（经过/离开）',
+              c: '表示经过或离开的地点（经过范围用で）。\n母は毎日公園を散歩する。\n妈妈每天在公园散步。\n李さんは毎日7時に家を出ます。\n小李每天7点出门。'
+            },
+            {
+              w: '格助词・から（原材料/依据）',
+              c: '表示原材料（化学变化用から）或判断的依据。\nワインは葡萄から作られる。\n葡萄酒由葡萄制成。\nデータから見ると…\n从数据来看…'
+            },
+            {
+              w: '格助词・から（起点）',
+              c: '表示时间或空间的起点。\nこの店は10時から営業している。\n这家店10点开始营业。\n東京から京都まで新幹線で行く。\n从东京到京都坐新干线去。'
+            },
+            {
+              w: '格助词・まで（终点）',
+              c: '表示时间/空间的终点。\n今日の会議は15時までです。\n今天的会议到15点为止。'
+            },
+            {
+              w: '格助词・より（比较基准）',
+              c: '表示比较的基准。\n山田さんは藤井さんより若いです。\n山田比藤井年轻。'
+            },
+            {
+              w: '格助词・より（起点）',
+              c: '表示起点（书面语）。\n夕方より雪が降り始めた。\n从傍晚开始下雪。'
+            },
+            {
+              w: '接续规律・形容词+形容词',
+              c: '两个形容词并列修饰（AN -て- AN / Aく -て- AN）。\n先生が　綺麗で　優しいです。\n老师漂亮又温柔。\n先生が　優しくて　綺麗です。\n老师温柔又漂亮。\n先生が　綺麗で　優しい　人です。\n老师是个漂亮又温柔的人。\n先生が　優しくて　綺麗な　人です。\n老师是个温柔又漂亮的人。\nこの店は安くておいしいです。\n这家店又便宜又好吃。'
+            },
+            {
+              w: '接续规律・名词+名词（并列）',
+              c: '名词并列，用「で」连接。\n春子は私の妹で学生です。\n春子是我妹妹也是学生。'
+            },
+            {
+              w: '接续规律・名词+名词（所属）',
+              c: '名词修饰名词，表示所属关系。\nパナソニックは日本の会社です。\n松下是日本的公司。'
+            },
+            {
+              w: '接续规律・名词+名词（な的功能）',
+              c: '名词后的「な」起语法功能（N + な + N）。\n学生なのに、まじめに勉強しない。\n明明是学生却不认真学习。'
+            },
+            {
+              w: '接续规律・动词+动词',
+              c: '两个动词的连接（V + て + V）。\n春子は図書館へ行って勉強する。\n春子去图书馆学习。'
+            },
+            {
+              w: '接续规律・形容词+名词',
+              c: '形容词修饰名词（Aい + N / AN + な + N）。\n琵琶湖は美しい湖です。\n琵琶湖是美丽的湖。\n京都は綺麗な町です。\n京都是美丽的城市。'
+            },
+            {
+              w: '接续规律・い形容词+动词',
+              c: 'い形容词修饰动词或作状语（Aく + て + V）。\n春になって、暖かくなりました。\n到了春天变暖和了。'
+            },
+            {
+              w: '接续规律・な形容词+动词',
+              c: 'な形容词修饰动词或作状语（AN + に + V / AN + で + Aい）。\n先生は丁寧に質問を答えた。\n老师仔细地回答了问题。\n彼はとっても親切で優しいです。\n他非常亲切又温柔。'
+            },
+            {
+              w: '接续规律・动词+名词',
+              c: '动词简体修饰名词（V简体形 + N）。\n勉強する時間はありません。\n没有学习的时间。\n私の住んでいる町はとても便利です。\n我住的城镇非常方便。\n我が社は優れた人材を求めている。\n我们公司在招募优秀人才。\n知らない人に話しかけられた。\n被陌生人搭话了。\n子供が寝ている間に　洗濯した。\n在孩子睡觉的时候洗了衣服。'
+            },
+            {
+              w: '思考・空格修饰解析（1）',
+              c: '解析日语句子中空格修饰的层次。\n先生は　丁寧に　質問を　答えた。\n老师仔细地回答了问题。\n（词性：AN + N + N + V）'
+            },
+            {
+              w: '思考・空格修饰解析（2）',
+              c: '解析日语句子中空格修饰的层次。\n京都は　多くの学生が　いる　静かな町だ。\n京都是个有许多学生居住的安静城市。\n（词性：AN + V + AN + な + N）'
+            },
+            {
+              w: '思考・空格修饰解析（3）',
+              c: '解析日语句子中空格修饰的层次。\n富士山は　季節によって、　さまざまな　美しい　姿を　見せる。\n富士山根据季节的不同，展现出各种美丽的样子。\n（词性：AN + で + Aい + N + V）'
+            },
+            {
+              w: '思考・空格修饰解析（4）',
+              c: '解析日语句子中空格修饰的层次。\n「ら抜き」という　動詞の活用についての　特別な　現象が　見られる。\n可以看到一种叫做「ら抜き」的动词活用的特殊现象。\n（词性：N + な + N + の + な + N + V）'
+            },
+            {
+              w: '思考题1・京都市内アンケート調査',
+              c: '将词块组合成完整句子。\n词汇：アンケート調査 / 京都市内 / 人 / 住んでいる / する\n京都市内に住んでいる人にアンケート調査をする。\n对居住在京都市内的人做问卷调查。'
+            },
+            {
+              w: '思考题2・春vs秋',
+              c: '将词块组合成完整句子。\n词汇：春 / 秋のほう / 季節だ / 一番いい / 京都 / 思っている\n春より、秋のほうが京都の一番いい季節だと思っている。\n我认为秋天比春天是京都最好的季节。'
+            },
+            {
+              w: '思考题3・市民多',
+              c: '将词块组合成完整句子。\n词汇：そうだ / 多かった / 市民\n市民が多かったそうだ。\n听说市民很多。'
+            },
+            {
+              w: '思考・综合长句',
+              c: '将思考题1-3的句子组合成一个长句。\n长句：\n京都市内に住んでいる人にアンケート調査をしたら、春より、秋のほうが京都の一番いい季節だと思っている市民が多かったそうだ。\n据说，对居住在京都市内的人做问卷调查的话，认为秋天比春天是京都最好的季节的市民很多。'
+            }
+          ]
         }
       ]
 
@@ -13592,45 +13696,17 @@
       let previousLibName = '' // 切换到收藏模式前保存的词库名称
 
       // --- 主题切换 ---
-      // 大主题：wabi（日系物哀）/ cyber（赛博朋克）；小主题：light/dark
-      function applyTheme() {
-        // 兼容旧版 theme=dark/light，迁移到新字段
-        if (!localStorage.getItem('theme_mode') && localStorage.getItem('theme')) {
-          localStorage.setItem('theme_mode', localStorage.getItem('theme'))
-        }
-        const savedStyle = localStorage.getItem('theme_style') || 'wabi'
-        const savedMode = localStorage.getItem('theme_mode') || 'light'
-
-        document.body.classList.toggle('cyber', savedStyle === 'cyber')
-        document.body.classList.toggle('dark', savedMode === 'dark')
-
-        // 更新header按钮图标
-        document.getElementById('theme-btn').textContent = savedMode === 'dark' ? '☀️' : '🌙'
-
-        // 同步设置面板的选择
-        const styleSelect = document.getElementById('theme-style-select')
-        if (styleSelect) styleSelect.value = savedStyle
-        const modeSelect = document.getElementById('theme-mode-select')
-        if (modeSelect) modeSelect.value = savedMode
-      }
       function initTheme() {
-        applyTheme()
+        const saved = localStorage.getItem('theme')
+        if (saved === 'dark') {
+          document.body.classList.add('dark')
+          document.getElementById('theme-btn').textContent = '☀️'
+        }
       }
       function toggleTheme() {
-        // 切换小主题（白天/黑夜）
-        const isDark = !document.body.classList.contains('dark')
-        localStorage.setItem('theme_mode', isDark ? 'dark' : 'light')
-        applyTheme()
-      }
-      function setThemeStyle(style) {
-        // 切换大主题（日系/赛博）
-        localStorage.setItem('theme_style', style)
-        applyTheme()
-      }
-      function setThemeMode(mode) {
-        // 切换小主题（白天/黑夜）
-        localStorage.setItem('theme_mode', mode)
-        applyTheme()
+        const isDark = document.body.classList.toggle('dark')
+        localStorage.setItem('theme', isDark ? 'dark' : 'light')
+        document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙'
       }
 
       // 进度记录管理
@@ -15295,7 +15371,14 @@
       // 导出所有localStorage数据
       function exportAllData() {
         const data = {}
-        const keys = ['theme', 'theme_style', 'theme_mode', 'exam_settings', 'last_lib', 'last_mode', 'favorites_export', 'word_progress']
+        const keys = [
+          'theme',
+          'exam_settings',
+          'last_lib',
+          'last_mode',
+          'favorites_export',
+          'word_progress'
+        ]
         // 导出所有词库的收藏、考试记录
         dataSource.forEach((lib) => {
           const favKey = `fav_${lib.name}`
