@@ -13516,12 +13516,23 @@
         localStorage.setItem(`progress_${libName}`, index.toString())
       }
 
+      // 记住上次使用的词库
+      function saveLastLib(libName) {
+        localStorage.setItem('last_lib', libName)
+      }
+
+      function getLastLib() {
+        return localStorage.getItem('last_lib') || ''
+      }
+
       function init() {
         initTheme()
         renderLibraryList()
-        // 默认加载第一个词库
+        // 恢复上次使用的词库，找不到则加载第一个
         if (dataSource.length > 0) {
-          loadDataFromLib(dataSource[0])
+          const lastLibName = getLastLib()
+          const savedLib = dataSource.find((l) => l.name === lastLibName)
+          loadDataFromLib(savedLib || dataSource[0])
         }
       }
 
@@ -13530,6 +13541,8 @@
         words = lib.words
         currentLibName = lib.name
         studyMode = 'normal' // 切换到普通模式
+        // 记住当前词库，刷新后复原
+        saveLastLib(currentLibName)
         // 恢复上次的背诵进度，如果进度超出范围则重置为0
         const savedProgress = getProgress(currentLibName)
         currentIndex = savedProgress < words.length ? savedProgress : 0
@@ -15133,7 +15146,7 @@
       // 导出所有localStorage数据
       function exportAllData() {
         const data = {}
-        const keys = ['theme', 'exam_settings', 'favorites_export', 'word_progress']
+        const keys = ['theme', 'exam_settings', 'last_lib', 'favorites_export', 'word_progress']
         // 导出所有词库的收藏、考试记录
         dataSource.forEach((lib) => {
           const favKey = `fav_${lib.name}`
