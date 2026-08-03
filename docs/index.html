@@ -13585,22 +13585,27 @@
           const speakButtons = document.createElement('div')
           speakButtons.className = 'speak-buttons'
 
-          // 日语播放按钮
-          const jpBtn = document.createElement('button')
-          jpBtn.className = 'speak-btn-small'
-          jpBtn.innerHTML = '日'
-          jpBtn.title = '日语播放'
-          jpBtn.onclick = () => speakLine(line, 'ja-JP')
+          // 判断该行是日语还是中文：包含真实假名字符则视为日语
+          // 排除片假名中点・(U+30FB)、长音符ー(U+30FC)等易误判符号
+          const isJapanese = /[\u3041-\u3096\u30a1-\u30fa\u30fd\u30fe]/.test(line)
 
-          // 中文播放按钮
-          const cnBtn = document.createElement('button')
-          cnBtn.className = 'speak-btn-small'
-          cnBtn.innerHTML = '中'
-          cnBtn.title = '中文播放'
-          cnBtn.onclick = () => speakLine(line, 'zh-CN')
-
-          speakButtons.appendChild(jpBtn)
-          speakButtons.appendChild(cnBtn)
+          if (isJapanese) {
+            // 日语：只显示"日"按钮
+            const jpBtn = document.createElement('button')
+            jpBtn.className = 'speak-btn-small'
+            jpBtn.innerHTML = '日'
+            jpBtn.title = '日语播放'
+            jpBtn.onclick = () => speakLine(line, 'ja-JP')
+            speakButtons.appendChild(jpBtn)
+          } else {
+            // 中文：只显示"中"按钮
+            const cnBtn = document.createElement('button')
+            cnBtn.className = 'speak-btn-small'
+            cnBtn.innerHTML = '中'
+            cnBtn.title = '中文播放'
+            cnBtn.onclick = () => speakLine(line, 'zh-CN')
+            speakButtons.appendChild(cnBtn)
+          }
 
           lineDiv.appendChild(textSpan)
           lineDiv.appendChild(speakButtons)
