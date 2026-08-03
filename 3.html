@@ -13525,14 +13525,28 @@
         return localStorage.getItem('last_lib') || ''
       }
 
+      // 记住上次的背诵模式（normal/favorites）
+      function saveLastMode(mode) {
+        localStorage.setItem('last_mode', mode)
+      }
+      function getLastMode() {
+        return localStorage.getItem('last_mode') || 'normal'
+      }
+
       function init() {
         initTheme()
         renderLibraryList()
         // 恢复上次使用的词库，找不到则加载第一个
         if (dataSource.length > 0) {
+          // 先读取上次模式（loadDataFromLib 会重置为 normal）
+          const lastMode = getLastMode()
           const lastLibName = getLastLib()
           const savedLib = dataSource.find((l) => l.name === lastLibName)
           loadDataFromLib(savedLib || dataSource[0])
+          // 恢复上次的背诵模式
+          if (lastMode === 'favorites') {
+            toggleStudyMode()
+          }
         }
       }
 
@@ -13541,8 +13555,9 @@
         words = lib.words
         currentLibName = lib.name
         studyMode = 'normal' // 切换到普通模式
-        // 记住当前词库，刷新后复原
+        // 记住当前词库和模式，刷新后复原
         saveLastLib(currentLibName)
+        saveLastMode('normal')
         // 恢复上次的背诵进度，如果进度超出范围则重置为0
         const savedProgress = getProgress(currentLibName)
         currentIndex = savedProgress < words.length ? savedProgress : 0
@@ -13891,12 +13906,14 @@
 
           // 切换到收藏模式
           studyMode = 'favorites'
+          saveLastMode('favorites')
           loadFavoritesMode()
           document.getElementById('mode-btn').innerHTML = '❤️ 收藏模式'
           document.getElementById('mode-btn').title = '切换到普通模式'
         } else {
           // 切换回普通模式
           studyMode = 'normal'
+          saveLastMode('normal')
 
           // 重新加载之前保存的词库
           let targetLibName = previousLibName
@@ -13938,6 +13955,7 @@
         if (favorites.length === 0) {
           alert('当前词库暂无收藏单词，请先收藏一些单词再切换到收藏模式')
           studyMode = 'normal'
+          saveLastMode('normal')
           document.getElementById('mode-btn').innerHTML = '📚 普通模式'
           return
         }
@@ -15151,7 +15169,7 @@
       // 导出所有localStorage数据
       function exportAllData() {
         const data = {}
-        const keys = ['theme', 'exam_settings', 'last_lib', 'favorites_export', 'word_progress']
+        const keys = ['theme', 'exam_settings', 'last_lib', 'last_mode', 'favorites_export', 'word_progress']
         // 导出所有词库的收藏、考试记录
         dataSource.forEach((lib) => {
           const favKey = `fav_${lib.name}`
