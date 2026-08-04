@@ -19,7 +19,10 @@
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
-    "@electron-toolkit/utils": "^4.0.0"
+    "@electron-toolkit/utils": "^4.0.0",
+    "codemirror": "5.65.16",
+    "element-plus": "^2.14.3",
+    "monaco-editor": "^0.56.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config": "^2.1.0",

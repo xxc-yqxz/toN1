@@ -1,5 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import ModeSelect from './components/ModeSelect.vue'
+import LectureVideoWindow from './components/LectureVideoWindow.vue'
+import LectureNoteWindow from './components/LectureNoteWindow.vue'
+import LectureSettings from './components/LectureSettings.vue'
 
 const DEFAULT_SETTINGS = {
   textSize: 22,
@@ -11,6 +15,11 @@ const DEFAULT_SETTINGS = {
 
 const windowMode = new URLSearchParams(window.location.search).get('window') || 'main'
 const isSettingsWindow = windowMode === 'settings'
+const isLectureSettingsWindow = windowMode === 'lecture-settings'
+const isLectureVideoWindow = windowMode === 'lecture-video'
+const isLectureNoteWindow = windowMode === 'lecture-notes'
+const isLectureWindow = isLectureVideoWindow || isLectureNoteWindow
+const isModeSelectWindow = windowMode === 'mode-select'
 
 const words = ref([])
 const dictionaryName = ref('')
@@ -563,6 +572,10 @@ function closeSettingsWindow() {
   window.api.closeSettingsWindow()
 }
 
+function closeLectureSettingsWindow() {
+  window.api.closeLectureSettingsWindow()
+}
+
 async function copyCurrentDisplayText() {
   const text = typeof displayText.value === 'string' ? displayText.value : ''
   if (!text) return
@@ -578,13 +591,20 @@ function onKeyDown(event) {
   if (event.repeat) return
   const key = event.key.toLowerCase()
 
-  if (isSettingsWindow) {
+  if (isSettingsWindow || isLectureSettingsWindow) {
     if (key === 'escape') {
-      closeSettingsWindow()
+      if (isLectureSettingsWindow) {
+        closeLectureSettingsWindow()
+      } else {
+        closeSettingsWindow()
+      }
       event.preventDefault()
     }
     return
   }
+
+  // 听课模式 / 模式选择窗口的按键由各自的组件自行处理
+  if (isLectureWindow || isModeSelectWindow) return
 
   if (event.altKey && key === 'c') {
     void copyCurrentDisplayText()
@@ -643,10 +663,22 @@ function onKeyDown(event) {
 }
 
 onMounted(async () => {
-  if (isSettingsWindow) {
+  if (isSettingsWindow || isLectureSettingsWindow) {
     document.body.classList.add('settings-window')
   } else {
     document.body.classList.remove('settings-window')
+  }
+
+  if (isLectureWindow) {
+    document.body.classList.add('lecture-window')
+  } else {
+    document.body.classList.remove('lecture-window')
+  }
+
+  if (isModeSelectWindow) {
+    document.body.classList.add('mode-select-window')
+  } else {
+    document.body.classList.remove('mode-select-window')
   }
 
   window.addEventListener('keydown', onKeyDown)
@@ -664,6 +696,9 @@ onMounted(async () => {
         form.value = { ...normalized }
         return
       }
+
+      // 听课 / 模式选择窗口不涉及背词逻辑
+      if (isLectureWindow || isLectureSettingsWindow || isModeSelectWindow) return
 
       // 只有在普通模式下才重新加载单词
       if (normalized.studyMode === 'normal') {
@@ -692,6 +727,9 @@ onMounted(async () => {
 
   await loadSettings()
 
+  // 听课 / 模式选择窗口无需加载词典数据
+  if (isLectureWindow || isLectureSettingsWindow || isModeSelectWindow) return
+
   // 无论是否是设置窗口，都加载词典数据
   await reloadWords()
 
@@ -716,7 +754,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main v-if="isSettingsWindow" class="settings-page no-drag">
+  <ModeSelect v-if="isModeSelectWindow" />
+
+  <LectureSettings v-else-if="isLectureSettingsWindow" />
+
+  <LectureVideoWindow v-else-if="isLectureVideoWindow" />
+
+  <LectureNoteWindow v-else-if="isLectureNoteWindow" />
+
+  <main v-else-if="isSettingsWindow" class="settings-page no-drag">
     <form class="settings-dialog" @submit.prevent="saveSettings">
       <h3 class="settings-title">设置</h3>
 

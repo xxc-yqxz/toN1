@@ -26,6 +26,28 @@ body.settings-window {
   background: #0f0f10 !important;
 }
 
+/* 听课模式：透明窗口，允许文本选择，不可拖拽（背景透明以透出桌面） */
+body.lecture-window {
+  display: block;
+  align-items: initial;
+  justify-content: initial;
+  overflow: hidden;
+  user-select: text;
+  -webkit-app-region: no-drag;
+  background: transparent !important;
+}
+
+/* 模式选择窗口 */
+body.mode-select-window {
+  display: block;
+  align-items: initial;
+  justify-content: initial;
+  overflow: auto;
+  user-select: text;
+  -webkit-app-region: no-drag;
+  background: #0f0f10 !important;
+}
+
 .text-panel {
   display: flex;
   flex-direction: column;

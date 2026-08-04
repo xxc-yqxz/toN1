@@ -4,3 +4,8 @@ out
 .DS_Store
 .eslintcache
 *.log*
+
+# 运行时数据文件
+lecture-state.json
+note.json
+star.json
