@@ -345,7 +345,7 @@ function openLectureSettingsDialog() {
 
   lectureSettingsWindow = new BrowserWindow({
     width: 520,
-    height: 400,
+    height: 560,
     minWidth: 460,
     minHeight: 300,
     show: false,

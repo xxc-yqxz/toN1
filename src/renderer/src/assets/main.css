@@ -77,9 +77,11 @@ body.mode-select-window {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .settings-dialog {
