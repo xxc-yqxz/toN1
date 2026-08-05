@@ -756,6 +756,71 @@
         padding: 10px 25px;
         font-size: 0.95rem;
       }
+
+      /* ===== 手机端适配 ===== */
+      @media (max-width: 600px) {
+        /* 顶部 logo / 设置按钮 */
+        .logo {
+          font-size: 1rem;
+        }
+        .settings-btn {
+          font-size: 0.7em;
+        }
+
+        /* 主单词显示：缩小，略大于答案字体 */
+        #word-display {
+          font-size: 1.6rem;
+        }
+
+        /* 收藏/纠错/模式/考试操作按钮（考试按钮含内联样式，需 !important 覆盖） */
+        .action-btns span,
+        .action-btns span#exam-btn {
+          font-size: 1.05rem !important;
+        }
+
+        /* 显示答案按钮 */
+        .show-btn {
+          font-size: 1rem;
+        }
+
+        /* 考试题干单词 */
+        .exam-question-word {
+          font-size: 1.7rem;
+        }
+        /* 考试题干下方假名（JS 内联 1.2rem，需 !important 覆盖） */
+        #exam-question div {
+          font-size: 1.05rem !important;
+        }
+
+        /* 考试选项 */
+        .exam-option {
+          font-size: 0.95rem;
+        }
+        .exam-option:hover {
+          font-size: 1rem;
+        }
+
+        /* 考试设置弹窗标题 */
+        .exam-setup-content h3 {
+          font-size: 1.15rem;
+        }
+
+        /* 答案解析卡片 */
+        .option-detail-card h4 {
+          font-size: 1.15rem;
+        }
+        .option-detail-card .kana-line {
+          font-size: 0.95rem;
+        }
+
+        /* 考试结果 */
+        .exam-result-content h2 {
+          font-size: 1.4rem;
+        }
+        .exam-score {
+          font-size: 2.5rem;
+        }
+      }
     </style>
   </head>
   <body>
@@ -786,8 +851,8 @@
           style="font-size: 1.5rem; cursor: pointer; opacity: 0.5; transition: all 0.3s"
           onmouseover="this.style.opacity = '1'"
           onmouseout="this.style.opacity = '0.5'"
-          >📝 考试</span
-        >
+          >📝 考试
+        </span>
       </div>
 
       <div id="content-display"></div>
