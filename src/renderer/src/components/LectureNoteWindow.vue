@@ -1,10 +1,16 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 
 const notes = ref('')
 const backgroundColor = ref('#1e1e1e')
 const windowOpacity = ref(100)
+
+// 避免降低透明度时背景色产生颜色污染（灰幕效果）
+const effectiveBackground = computed(() => {
+  if (windowOpacity.value >= 100) return backgroundColor.value
+  return 'transparent'
+})
 // 按住 Ctrl 进入拖动模式，松开恢复编辑
 const isDragging = ref(false)
 const editorRef = ref(null)
@@ -120,7 +126,7 @@ onBeforeUnmount(() => {
   <div
     class="lecture-page"
     :class="{ dragging: isDragging }"
-    :style="{ background: backgroundColor, opacity: windowOpacity / 100 }"
+    :style="{ background: effectiveBackground, opacity: windowOpacity / 100 }"
   >
     <JsonEditor
       ref="editorRef"
@@ -141,6 +147,8 @@ onBeforeUnmount(() => {
   border-radius: 0;
   /* 默认编辑模式：编辑器完全可交互 */
   -webkit-app-region: no-drag;
+  /* 背景色和透明度变化平滑过渡 */
+  transition: background 0.3s, opacity 0.3s;
 }
 
 /* 按住 Ctrl：整窗变为系统拖拽区，按住任意位置即可移动窗口 */

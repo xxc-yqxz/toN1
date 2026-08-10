@@ -10,6 +10,14 @@ const showControls = ref(false)
 const videoError = ref('')
 const backgroundColor = ref('#000000')
 const windowOpacity = ref(100)
+
+// 计算有效背景色：当透明度 < 100% 时使用透明背景，避免黑色/彩色背景
+// 形成灰色幕布遮罩（CSS opacity 会同时作用于背景和内容，非透明背景
+// 在降低透明度时会产生颜色污染）
+const effectiveBackground = computed(() => {
+  if (windowOpacity.value >= 100) return backgroundColor.value
+  return 'transparent'
+})
 const pendingProgress = ref(null)
 const playbackRate = ref(1)
 let disposeVideoChanged = null
@@ -35,6 +43,12 @@ function onResumeVideo() {
   const el = videoEl.value
   if (el && shouldResumeOnShow) {
     shouldResumeOnShow = false
+    // 通过微调 opacity 强制 Chromium 软件渲染器重绘 <video> 帧，
+    // 避免 DWM 合成表面重建后 Chromium 来不及推送新帧而卡在灰屏
+    el.style.opacity = '0.99'
+    setTimeout(() => {
+      if (el) el.style.opacity = '1'
+    }, 50)
     void el.play()
   }
 }
@@ -288,7 +302,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="lecture-page" :style="{ background: backgroundColor, opacity: windowOpacity / 100 }">
+  <div class="lecture-page" :style="{ background: effectiveBackground, opacity: windowOpacity / 100 }">
     <!-- 顶部隐形拖拽条（覆盖窗口边缘缩放区，保证有足够的可拖区域） -->
     <div class="drag-strip" title="按住此处拖动窗口"></div>
 
@@ -362,6 +376,8 @@ onBeforeUnmount(() => {
   border-radius: 0;
   /* 窗口整体可拖拽 */
   -webkit-app-region: drag;
+  /* 背景色和透明度变化平滑过渡 */
+  transition: background 0.3s, opacity 0.3s;
 }
 
 /* 顶部隐形拖拽条 */
@@ -400,9 +416,6 @@ onBeforeUnmount(() => {
   display: block;
   -webkit-app-region: drag;
   user-select: none;
-  /* 强制视频使用独立合成层，缓解透明窗口下 GPU 合成偶发灰屏 */
-  transform: translateZ(0);
-  will-change: transform;
 }
 
 .video-placeholder {

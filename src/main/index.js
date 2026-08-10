@@ -254,14 +254,39 @@ function getAllMainWindows() {
   )
 }
 
+// 强制 DWM 重建透明窗口合成表面。
+// 原理：DWM 对屏幕外/隐藏后透明的窗口可能丢弃合成表面，仅靠 invalidate()
+// 或 setBackgroundColor() 无法可靠触发重建（DWM 可能忽略这些非几何信号）。
+// 改变窗口大小是 DWM 无法忽略的几何变化，必然重新合成。放大后保持 50ms 给
+// DWM 充足时间采样新表面再恢复，人眼无法察觉 +2px 的短暂变化。
+function forceDwmRefresh(win) {
+  if (!win || win.isDestroyed()) return
+  try {
+    const [w, h] = win.getSize()
+    // 放大触发 DWM 表面重建
+    win.setSize(w + 2, h)
+    // 同步 invalidate，让 Chromium 在重建的表面上产出内容帧
+    win.webContents?.invalidate()
+    // 保持 50ms 给 DWM 充足时间采样新合成表面，再恢复大小
+    setTimeout(() => {
+      if (!win.isDestroyed()) {
+        win.setSize(w, h)
+        win.webContents?.invalidate()
+      }
+    }, 50)
+  } catch { /* 忽略 */ }
+}
+
 function hideToTray() {
   // 隐藏前通知视频窗口暂停播放
   if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
     lectureVideoWindow.webContents.send('lecture:pause-video')
   }
 
-  // 关键：透明窗口不能直接 hide()，否则 DWM 合成表面失效，重新显示时画面变灰（截图才恢复）。
-  // 改为把窗口移到屏幕外（保持窗口"活着"），合成表面一直有效，从根源上避免变灰。
+  // 透明窗口不能直接 hide()（DWM 合成表面被销毁，恢复时重建失败则灰屏）。
+  // 移到屏幕外保持窗口活跃，恢复时通过 forceDwmRefresh 重建表面。
+  // 注意：移出前不 invalidate，因为 opacity < 100% 时 effectiveBackground
+  // 是 transparent，invalid 会渲染一帧透明背景，DWM 缓存后恢复时反而变灰。
   const offscreenX = -32000
   const offscreenY = -32000
 
@@ -295,38 +320,27 @@ function showPrimaryWindow() {
   })
   isWindowHidden = false
 
-  // 透明窗口（Windows 分层窗口）在隐藏再显示后，DWM 可能停止刷新其位图导致画面变灰。
-  // 经验教训：
-  // - setOpacity 对 transparent 窗口会破坏 alpha 状态（反而变灰），禁用；
-  // - moveTop / 移动窗口 / 改尺寸等层级扰动同样会触发合成异常，禁用；
-  // - 视频恢复播放出帧（约 0.5s）是变灰的高发时刻。
-  // 采用 setBackgroundColor 强制重建透明窗口表面：它是专为透明窗口设计的 API，
-  // 重新设置相同背景色会触发表面重建，且无视觉副作用。
+  // 第 1 次：延迟 20ms 再刷新。setPosition + show 后 DWM 可能尚未完成
+  // 窗口在可见区域的注册，立即刷新等效于对着一个"不在位"的窗口操作，
+  // 延迟一小段时间让 DWM 先把窗口安顿好再触发几何变更，命中率更高。
+  setTimeout(() => {
+    wins.forEach((win) => forceDwmRefresh(win))
+  }, 20)
+
+  // 第 2 次：恢复视频播放 + 二次 forceDwmRefresh（视频恢复出帧期间 DWM
+  // 可能丢弃表面，再次刷新覆盖高风险窗口）
   setTimeout(() => {
     if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
       lectureVideoWindow.webContents.send('lecture:resume-video')
     }
-    // 首次表面重建（显示后立即执行，无害）
-    wins.forEach((win) => {
-      if (!win.isDestroyed()) {
-        try {
-          win.setBackgroundColor('#00000000')
-        } catch {
-          // 非透明窗口不支持，忽略
-        }
-      }
-    })
+    wins.forEach((win) => forceDwmRefresh(win))
   }, 120)
 
-  // 覆盖视频出帧（约 0.5s）时刻的变灰：延迟重建一次透明表面
+  // 第 3 次：视频出帧高峰（约 0.5s）后的最终兜底
   setTimeout(() => {
     wins.forEach((win) => {
       if (!win.isDestroyed()) {
-        try {
-          win.setBackgroundColor('#00000000')
-        } catch {
-          // 非透明窗口不支持，忽略
-        }
+        try { forceDwmRefresh(win) } catch { /* 忽略 */ }
       }
     })
   }, 550)
