@@ -38,6 +38,16 @@ const api = {
     return () => ipcRenderer.removeListener('window:background', listener)
   },
   setEditorStyle: (key, value) => ipcRenderer.invoke('window:set-editor-style', key, value),
+  onPauseVideo: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on('lecture:pause-video', listener)
+    return () => ipcRenderer.removeListener('lecture:pause-video', listener)
+  },
+  onResumeVideo: (callback) => {
+    const listener = () => callback()
+    ipcRenderer.on('lecture:resume-video', listener)
+    return () => ipcRenderer.removeListener('lecture:resume-video', listener)
+  },
   onEditorStyle: (callback) => {
     const listener = (_event, key, value) => callback(key, value)
     ipcRenderer.on('editor:style', listener)

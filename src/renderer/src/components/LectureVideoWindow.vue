@@ -15,7 +15,29 @@ const playbackRate = ref(1)
 let disposeVideoChanged = null
 let disposeWindowBackground = null
 let disposeWindowOpacity = null
+let disposePauseVideo = null
+let disposeResumeVideo = null
 let progressTimer = null
+// 标记：是否因 Alt+Q 隐藏而被暂停（显示时需自动恢复播放）
+let shouldResumeOnShow = false
+
+// Alt+Q 隐藏窗口时暂停视频（记录需恢复的播放状态）
+function onPauseVideo() {
+  const el = videoEl.value
+  if (el && !el.paused) {
+    shouldResumeOnShow = true
+    el.pause()
+  }
+}
+
+// Alt+Q 显示窗口时恢复播放（仅当隐藏前正在播放）
+function onResumeVideo() {
+  const el = videoEl.value
+  if (el && shouldResumeOnShow) {
+    shouldResumeOnShow = false
+    void el.play()
+  }
+}
 
 const currentTimeText = computed(() => formatTime(currentTime.value))
 const durationText = computed(() => formatTime(duration.value))
@@ -231,6 +253,14 @@ onMounted(async () => {
     windowOpacity.value = Math.round(Number(value) * 100)
   })
 
+  // Alt+Q 隐藏/显示时暂停/恢复视频
+  disposePauseVideo = window.api.onPauseVideo(() => {
+    onPauseVideo()
+  })
+  disposeResumeVideo = window.api.onResumeVideo(() => {
+    onResumeVideo()
+  })
+
   window.addEventListener('keydown', onKeyDown)
 })
 
@@ -250,6 +280,10 @@ onBeforeUnmount(() => {
   disposeWindowBackground = null
   disposeWindowOpacity?.()
   disposeWindowOpacity = null
+  disposePauseVideo?.()
+  disposePauseVideo = null
+  disposeResumeVideo?.()
+  disposeResumeVideo = null
 })
 </script>
 
@@ -366,6 +400,9 @@ onBeforeUnmount(() => {
   display: block;
   -webkit-app-region: drag;
   user-select: none;
+  /* 强制视频使用独立合成层，缓解透明窗口下 GPU 合成偶发灰屏 */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .video-placeholder {

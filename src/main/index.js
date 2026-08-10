@@ -19,6 +19,11 @@ import { Readable } from 'stream'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
+// 透明窗口在 Windows 上与 GPU 硬件合成存在已知 bug（视频/画面偶发变灰、残留旧帧，
+// 截图等强制全屏重绘后暂时恢复）。禁用硬件加速，改用软件合成，可根治该问题。
+// 代价：视频解码走软解，对本地学习视频（通常 720p/1080p）性能足够。
+app.disableHardwareAcceleration()
+
 // 注册自定义协议，用于在渲染进程中安全地播放本地视频（支持断点/拖拽播放）
 // standard: true 必须启用，否则自定义 scheme 的 URL 解析/媒体加载行为异常
 // corsEnabled: true 允许 canvas 读取视频帧（配合响应中的 Access-Control-Allow-Origin）
@@ -80,6 +85,11 @@ let saveBoundsTimer = null
 let lectureVideoSaveTimer = null
 let lectureNoteSaveTimer = null
 let appSettings = { ...DEFAULT_SETTINGS }
+// Alt+Q 隐藏状态标记：透明窗口不使用 hide()（会导致 DWM 合成表面失效变灰），
+// 改为移到屏幕外，因此无法用 isVisible() 判断，需要独立标记
+let isWindowHidden = false
+// 隐藏前各窗口的原始位置，用于恢复
+const offscreenPositions = new Map()
 
 function getWindowStatePath() {
   return join(app.getPath('userData'), WINDOW_STATE_FILE)
@@ -216,6 +226,8 @@ function saveWindowState() {
   if (mainWindow.isMinimized() || mainWindow.isMaximized()) return
 
   const bounds = mainWindow.getBounds()
+  // 隐藏到托盘时窗口位于屏幕外，跳过保存，避免覆盖正常位置记录
+  if (bounds.x < -10000 || bounds.y < -10000) return
   const windowStatePath = getWindowStatePath()
 
   try {
@@ -243,10 +255,22 @@ function getAllMainWindows() {
 }
 
 function hideToTray() {
+  // 隐藏前通知视频窗口暂停播放
+  if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
+    lectureVideoWindow.webContents.send('lecture:pause-video')
+  }
+
+  // 关键：透明窗口不能直接 hide()，否则 DWM 合成表面失效，重新显示时画面变灰（截图才恢复）。
+  // 改为把窗口移到屏幕外（保持窗口"活着"），合成表面一直有效，从根源上避免变灰。
+  const offscreenX = -32000
+  const offscreenY = -32000
+
   getAllMainWindows().forEach((win) => {
+    offscreenPositions.set(win.id, win.getPosition())
     win.setSkipTaskbar(true)
-    win.hide()
+    win.setPosition(offscreenX, offscreenY)
   })
+  isWindowHidden = true
 }
 
 function showPrimaryWindow() {
@@ -261,8 +285,51 @@ function showPrimaryWindow() {
       win.restore()
     }
     win.setSkipTaskbar(false)
+    // 从屏幕外移回隐藏前的位置
+    const savedPos = offscreenPositions.get(win.id)
+    if (savedPos) {
+      win.setPosition(savedPos[0], savedPos[1])
+      offscreenPositions.delete(win.id)
+    }
     win.show()
   })
+  isWindowHidden = false
+
+  // 透明窗口（Windows 分层窗口）在隐藏再显示后，DWM 可能停止刷新其位图导致画面变灰。
+  // 经验教训：
+  // - setOpacity 对 transparent 窗口会破坏 alpha 状态（反而变灰），禁用；
+  // - moveTop / 移动窗口 / 改尺寸等层级扰动同样会触发合成异常，禁用；
+  // - 视频恢复播放出帧（约 0.5s）是变灰的高发时刻。
+  // 采用 setBackgroundColor 强制重建透明窗口表面：它是专为透明窗口设计的 API，
+  // 重新设置相同背景色会触发表面重建，且无视觉副作用。
+  setTimeout(() => {
+    if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
+      lectureVideoWindow.webContents.send('lecture:resume-video')
+    }
+    // 首次表面重建（显示后立即执行，无害）
+    wins.forEach((win) => {
+      if (!win.isDestroyed()) {
+        try {
+          win.setBackgroundColor('#00000000')
+        } catch {
+          // 非透明窗口不支持，忽略
+        }
+      }
+    })
+  }, 120)
+
+  // 覆盖视频出帧（约 0.5s）时刻的变灰：延迟重建一次透明表面
+  setTimeout(() => {
+    wins.forEach((win) => {
+      if (!win.isDestroyed()) {
+        try {
+          win.setBackgroundColor('#00000000')
+        } catch {
+          // 非透明窗口不支持，忽略
+        }
+      }
+    })
+  }, 550)
 
   // 确保主窗口获得键盘焦点（无边框/透明窗口在 Windows 上 focus 可能延迟生效）
   const focusTarget = wins[0]
@@ -282,12 +349,12 @@ function toggleWindowVisibility() {
     return
   }
 
-  if (wins.some((win) => win.isVisible())) {
-    hideToTray()
+  if (isWindowHidden) {
+    showPrimaryWindow()
     return
   }
 
-  showPrimaryWindow()
+  hideToTray()
 }
 
 function openSettingsDialog() {
@@ -440,6 +507,10 @@ function closeLectureWindows() {
   if (lectureNoteWindow && !lectureNoteWindow.isDestroyed()) {
     lectureNoteWindow.destroy()
   }
+
+  // 清理隐藏状态（隐藏中切换模式/退出时，避免残留标记影响新窗口）
+  isWindowHidden = false
+  offscreenPositions.clear()
 }
 
 function openModeSelectDialog() {
@@ -457,6 +528,8 @@ function saveLectureWindowState(key) {
   if (win.isMinimized() || win.isMaximized()) return
 
   const bounds = win.getBounds()
+  // 隐藏到托盘时窗口位于屏幕外，跳过保存，避免覆盖正常位置记录
+  if (bounds.x < -10000 || bounds.y < -10000) return
   const logicalW = bounds.width
   const logicalH = bounds.height
 
@@ -653,7 +726,9 @@ function createLectureVideoWindow() {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // 防止 Chromium 认为窗口在后台时暂停视频渲染（透明窗口偶发灰屏的诱因之一）
+      backgroundThrottling: false
     }
   })
 
@@ -1174,6 +1249,13 @@ app.whenReady().then(() => {
   ipcMain.handle('lecture:set-video', (_, filePath) => {
     if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
       lectureVideoWindow.webContents.send('lecture:video-changed', typeof filePath === 'string' ? filePath : '')
+      // transparent 窗口在切换视频源重载 <video> 时 DWM 合成可能异常（画面变灰），
+      // 延迟强制重绘刷新（与 Alt+Q 隐藏/显示变灰是同一类问题）
+      setTimeout(() => {
+        if (!lectureVideoWindow.isDestroyed() && lectureVideoWindow.webContents) {
+          lectureVideoWindow.webContents.invalidate()
+        }
+      }, 200)
     }
     return true
   })
