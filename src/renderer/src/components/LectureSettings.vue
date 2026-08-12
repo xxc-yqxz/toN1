@@ -279,7 +279,7 @@ function normalizeBackground(color) {
         </div>
       </label>
 
-      <p class="hint">背景色通过色板下方透明度条调为透明，即可让窗口内容悬浮在桌面上</p>
+      <p class="hint">窗口为原生半透明窗口：整窗不透明度由上方滑块控制，背景色为不透明底色（不再支持穿透桌面）</p>
 
       <p v-if="settingsError" class="error">{{ settingsError }}</p>
 

@@ -19,10 +19,20 @@ import { Readable } from 'stream'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
-// 透明窗口在 Windows 上与 GPU 硬件合成存在已知 bug（视频/画面偶发变灰、残留旧帧，
-// 截图等强制全屏重绘后暂时恢复）。禁用硬件加速，改用软件合成，可根治该问题。
-// 代价：视频解码走软解，对本地学习视频（通常 720p/1080p）性能足够。
-app.disableHardwareAcceleration()
+// 窗口方案说明（2026-08 重构）：
+// 此前视频/笔记窗口使用 transparent:true（Windows 分层窗口 WS_EX_LAYERED），
+// 在视频播放 + 被其他窗口遮挡 + Alt+Q 隐藏显示的组合下，Chromium 会暂停视频
+// 渲染且无法可靠恢复，窗口呈现灰色残留。经排查（截图时正常 → 内容本身正确、
+// 窗口失去焦点后透过半透明看到灰色背景 → 视频帧未续渲染），透明窗口方案在
+// Windows 上无法根治。现改用 Electron 官方推荐的方案：
+//   普通窗口（transparent:false）+ setOpacity() 原生窗口不透明度。
+// 由 Windows 直接支持原生半透明，不涉及 Chromium 分层窗口渲染暂停逻辑，
+// 从机制上绕开变灰问题。代价：背景不能真正"穿透"桌面（显示不透明底色）。
+
+// 仍保留遮挡检测开关：防止窗口被覆盖时 Chromium 暂停渲染（对普通窗口同样有益）
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 // 注册自定义协议，用于在渲染进程中安全地播放本地视频（支持断点/拖拽播放）
 // standard: true 必须启用，否则自定义 scheme 的 URL 解析/媒体加载行为异常
@@ -85,11 +95,9 @@ let saveBoundsTimer = null
 let lectureVideoSaveTimer = null
 let lectureNoteSaveTimer = null
 let appSettings = { ...DEFAULT_SETTINGS }
-// Alt+Q 隐藏状态标记：透明窗口不使用 hide()（会导致 DWM 合成表面失效变灰），
-// 改为移到屏幕外，因此无法用 isVisible() 判断，需要独立标记
+// Alt+Q 隐藏状态标记：隐藏时窗口移到屏幕外（不 hide()、不改页面透明度），
+// isVisible() 恒为 true，因此用独立标记判断当前是否处于隐藏状态
 let isWindowHidden = false
-// 隐藏前各窗口的原始位置，用于恢复
-const offscreenPositions = new Map()
 
 function getWindowStatePath() {
   return join(app.getPath('userData'), WINDOW_STATE_FILE)
@@ -254,46 +262,17 @@ function getAllMainWindows() {
   )
 }
 
-// 强制 DWM 重建透明窗口合成表面。
-// 原理：DWM 对屏幕外/隐藏后透明的窗口可能丢弃合成表面，仅靠 invalidate()
-// 或 setBackgroundColor() 无法可靠触发重建（DWM 可能忽略这些非几何信号）。
-// 改变窗口大小是 DWM 无法忽略的几何变化，必然重新合成。放大后保持 50ms 给
-// DWM 充足时间采样新表面再恢复，人眼无法察觉 +2px 的短暂变化。
-function forceDwmRefresh(win) {
-  if (!win || win.isDestroyed()) return
-  try {
-    const [w, h] = win.getSize()
-    // 放大触发 DWM 表面重建
-    win.setSize(w + 2, h)
-    // 同步 invalidate，让 Chromium 在重建的表面上产出内容帧
-    win.webContents?.invalidate()
-    // 保持 50ms 给 DWM 充足时间采样新合成表面，再恢复大小
-    setTimeout(() => {
-      if (!win.isDestroyed()) {
-        win.setSize(w, h)
-        win.webContents?.invalidate()
-      }
-    }, 50)
-  } catch { /* 忽略 */ }
-}
-
+// 隐藏/显示：窗口已改为普通窗口（非 transparent），直接使用标准 hide()/show()，
+// 不再存在透明窗口分层合成表面丢失的问题，恢复显示 100% 可靠。
 function hideToTray() {
   // 隐藏前通知视频窗口暂停播放
   if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
     lectureVideoWindow.webContents.send('lecture:pause-video')
   }
 
-  // 透明窗口不能直接 hide()（DWM 合成表面被销毁，恢复时重建失败则灰屏）。
-  // 移到屏幕外保持窗口活跃，恢复时通过 forceDwmRefresh 重建表面。
-  // 注意：移出前不 invalidate，因为 opacity < 100% 时 effectiveBackground
-  // 是 transparent，invalid 会渲染一帧透明背景，DWM 缓存后恢复时反而变灰。
-  const offscreenX = -32000
-  const offscreenY = -32000
-
   getAllMainWindows().forEach((win) => {
-    offscreenPositions.set(win.id, win.getPosition())
     win.setSkipTaskbar(true)
-    win.setPosition(offscreenX, offscreenY)
+    win.hide()
   })
   isWindowHidden = true
 }
@@ -310,42 +289,18 @@ function showPrimaryWindow() {
       win.restore()
     }
     win.setSkipTaskbar(false)
-    // 从屏幕外移回隐藏前的位置
-    const savedPos = offscreenPositions.get(win.id)
-    if (savedPos) {
-      win.setPosition(savedPos[0], savedPos[1])
-      offscreenPositions.delete(win.id)
-    }
     win.show()
   })
   isWindowHidden = false
 
-  // 第 1 次：延迟 20ms 再刷新。setPosition + show 后 DWM 可能尚未完成
-  // 窗口在可见区域的注册，立即刷新等效于对着一个"不在位"的窗口操作，
-  // 延迟一小段时间让 DWM 先把窗口安顿好再触发几何变更，命中率更高。
-  setTimeout(() => {
-    wins.forEach((win) => forceDwmRefresh(win))
-  }, 20)
-
-  // 第 2 次：恢复视频播放 + 二次 forceDwmRefresh（视频恢复出帧期间 DWM
-  // 可能丢弃表面，再次刷新覆盖高风险窗口）
+  // 恢复视频播放（窗口显示后再触发，视频本身会自然刷新画面）
   setTimeout(() => {
     if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
       lectureVideoWindow.webContents.send('lecture:resume-video')
     }
-    wins.forEach((win) => forceDwmRefresh(win))
   }, 120)
 
-  // 第 3 次：视频出帧高峰（约 0.5s）后的最终兜底
-  setTimeout(() => {
-    wins.forEach((win) => {
-      if (!win.isDestroyed()) {
-        try { forceDwmRefresh(win) } catch { /* 忽略 */ }
-      }
-    })
-  }, 550)
-
-  // 确保主窗口获得键盘焦点（无边框/透明窗口在 Windows 上 focus 可能延迟生效）
+  // 确保主窗口获得键盘焦点（无边框/普通窗口在 Windows 上 focus 可能延迟生效）
   const focusTarget = wins[0]
   focusTarget.setFocusable(true)
   focusTarget.focus()
@@ -524,7 +479,6 @@ function closeLectureWindows() {
 
   // 清理隐藏状态（隐藏中切换模式/退出时，避免残留标记影响新窗口）
   isWindowHidden = false
-  offscreenPositions.clear()
 }
 
 function openModeSelectDialog() {
@@ -655,13 +609,14 @@ function applySavedWindowOpacity() {
       const videoRaw = Number(state.videoOpacity ?? state.windowOpacity)
       const noteRaw = Number(state.noteOpacity ?? state.windowOpacity)
 
-      const applyOpacity = (win, raw) => {
-        if (win && !win.isDestroyed() && Number.isFinite(raw)) {
-          win.webContents.send('window:opacity', Math.min(100, Math.max(10, raw)) / 100)
-        }
+      // 视频窗口：普通窗口，用原生 setOpacity；
+      // 笔记窗口：透明窗口，用 CSS opacity 广播（透明窗口不能用 setOpacity）
+      if (lectureVideoWindow && !lectureVideoWindow.isDestroyed() && Number.isFinite(videoRaw)) {
+        lectureVideoWindow.setOpacity(Math.min(100, Math.max(10, videoRaw)) / 100)
       }
-      applyOpacity(lectureVideoWindow, videoRaw)
-      applyOpacity(lectureNoteWindow, noteRaw)
+      if (lectureNoteWindow && !lectureNoteWindow.isDestroyed() && Number.isFinite(noteRaw)) {
+        lectureNoteWindow.webContents.send('window:opacity', Math.min(100, Math.max(10, noteRaw)) / 100)
+      }
 
       // 恢复保存的背景色（视频/笔记窗口分别设置）
       const videoBg = typeof state.videoBackground === 'string' ? state.videoBackground : null
@@ -732,21 +687,28 @@ function createLectureVideoWindow() {
     minHeight: 60,
     show: false,
     frame: false,
-    transparent: true,
+    // 不再使用 transparent（分层窗口渲染缺陷导致视频变灰），
+    // 改用普通窗口 + setOpacity 原生不透明度。背景为不透明黑色。
+    transparent: false,
     hasShadow: false,
+    thickFrame: false,
     autoHideMenuBar: true,
-    backgroundColor: '#00000000',
+    backgroundColor: '#000000',
     title: '听课模式 - 视频',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      // 防止 Chromium 认为窗口在后台时暂停视频渲染（透明窗口偶发灰屏的诱因之一）
+      // 防止 Chromium 认为窗口在后台时暂停视频渲染
       backgroundThrottling: false
     }
   })
 
   lectureVideoWindow.removeMenu()
+
+  // 运行时再次关闭后台节流（比 webPreferences 配置更可靠），
+  // 防止窗口被覆盖/失焦时 Chromium 暂停视频渲染
+  lectureVideoWindow.webContents.setBackgroundThrottling(false)
 
   lectureVideoWindow.on('ready-to-show', () => {
     lectureVideoWindow?.show()
@@ -800,8 +762,11 @@ function createLectureNoteWindow() {
     minHeight: 60,
     show: false,
     frame: false,
+    // 笔记窗口没有视频渲染问题，保持透明窗口方案（CSS opacity 控制不透明度），
+    // 透明悬浮效果正常，无需切换为普通窗口
     transparent: true,
     hasShadow: false,
+    thickFrame: false,
     autoHideMenuBar: true,
     backgroundColor: '#00000000',
     title: '听课模式 - 笔记',
@@ -813,6 +778,9 @@ function createLectureNoteWindow() {
   })
 
   lectureNoteWindow.removeMenu()
+
+  // 运行时关闭后台节流，防止被覆盖/失焦时渲染暂停
+  lectureNoteWindow.webContents.setBackgroundThrottling(false)
 
   lectureNoteWindow.on('ready-to-show', () => {
     lectureNoteWindow?.show()
@@ -1224,12 +1192,16 @@ app.whenReady().then(() => {
   })
 
   // 窗口不透明度控制（供听课模式使用，可分别设置视频/笔记窗口）
-  // 窗口为 transparent，无法使用 setOpacity，改为向目标窗口广播事件，由渲染层用 CSS opacity 实现
+  // 视频窗口为普通窗口，用原生 setOpacity；
+  // 笔记窗口为透明窗口（不能用 setOpacity），广播 CSS opacity 事件由渲染层应用
   ipcMain.handle('window:set-opacity', (event, target, value) => {
     const opacity = Number(clampNumber(value, 0.05, 1, 1).toFixed(2))
-    const targetWindow = target === 'notes' ? lectureNoteWindow : lectureVideoWindow
-    if (targetWindow && !targetWindow.isDestroyed()) {
-      targetWindow.webContents.send('window:opacity', opacity)
+    if (target === 'notes') {
+      if (lectureNoteWindow && !lectureNoteWindow.isDestroyed()) {
+        lectureNoteWindow.webContents.send('window:opacity', opacity)
+      }
+    } else if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
+      lectureVideoWindow.setOpacity(opacity)
     }
     return true
   })

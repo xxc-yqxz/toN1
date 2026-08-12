@@ -6,6 +6,7 @@ const notes = ref('')
 const backgroundColor = ref('#1e1e1e')
 const windowOpacity = ref(100)
 
+// 笔记窗口保持透明窗口方案，不透明度通过 CSS opacity 控制
 // 避免降低透明度时背景色产生颜色污染（灰幕效果）
 const effectiveBackground = computed(() => {
   if (windowOpacity.value >= 100) return backgroundColor.value
