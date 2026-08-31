@@ -9,11 +9,20 @@ const duration = ref(0)
 const showControls = ref(false)
 const videoError = ref('')
 const backgroundColor = ref('#000000')
-// 窗口不透明度由主进程 setOpacity 原生控制，渲染层不再用 CSS opacity
+const windowOpacity = ref(100)
+
+// 计算有效背景色：当透明度 < 100% 时使用透明背景，避免黑色/彩色背景
+// 形成灰色幕布遮罩（CSS opacity 会同时作用于背景和内容，非透明背景
+// 在降低透明度时会产生颜色污染）
+const effectiveBackground = computed(() => {
+  if (windowOpacity.value >= 100) return backgroundColor.value
+  return 'transparent'
+})
 const pendingProgress = ref(null)
 const playbackRate = ref(1)
 let disposeVideoChanged = null
 let disposeWindowBackground = null
+let disposeWindowOpacity = null
 let disposePauseVideo = null
 let disposeResumeVideo = null
 let progressTimer = null
@@ -32,54 +41,16 @@ function onPauseVideo() {
 // Alt+Q 显示窗口时恢复播放（仅当隐藏前正在播放）
 function onResumeVideo() {
   const el = videoEl.value
-  if (!el || !shouldResumeOnShow) return
-  shouldResumeOnShow = false
-
-  // 窗口被遮挡时 Chromium 会暂停视频解码/渲染，恢复后仅 play() 可能仍显示
-  // 旧帧。策略：
-  // 1. seek 抖动强制解码器输出新帧
-  // 2. 自愈：若 1s 内无视频帧回调（渲染仍停滞），强制重建媒体管道（重新 load 视频源）
-  const time = el.currentTime
-  let frameUpdated = false
-  const markFrame = () => {
-    frameUpdated = true
-  }
-  try {
-    el.requestVideoFrameCallback(markFrame)
-  } catch {
-    frameUpdated = true // 环境不支持时跳过自愈
-  }
-
-  if (Number.isFinite(time) && time > 0.03) {
-    el.currentTime = time - 0.02
-  }
-  setTimeout(() => {
-    if (el && Math.abs(el.currentTime - time) < 0.05) {
-      el.currentTime = time
-    }
-  }, 50)
-  void el.play()
-
-  // 自愈：视频帧 1s 内没更新 → 强制重建媒体渲染管道（重新加载源并恢复进度）
-  setTimeout(() => {
-    if (!el || frameUpdated) return
-    const src = el.currentSrc || videoUrl.value
-    const pos = el.currentTime
-    if (!src) return
-    el.pause()
-    el.src = ''
-    el.load()
+  if (el && shouldResumeOnShow) {
+    shouldResumeOnShow = false
+    // 通过微调 opacity 强制 Chromium 软件渲染器重绘 <video> 帧，
+    // 避免 DWM 合成表面重建后 Chromium 来不及推送新帧而卡在灰屏
+    el.style.opacity = '0.99'
     setTimeout(() => {
-      if (!el) return
-      el.src = src
-      el.load()
-      if (Number.isFinite(pos) && pos > 0.1) {
-        el.currentTime = pos
-      }
-      el.style.opacity = '1'
-      void el.play()
-    }, 30)
-  }, 1000)
+      if (el) el.style.opacity = '1'
+    }, 50)
+    void el.play()
+  }
 }
 
 const currentTimeText = computed(() => formatTime(currentTime.value))
@@ -271,6 +242,11 @@ onMounted(async () => {
         pendingProgress.value = Number(state.videoProgress)
       }
     }
+    // 兼容旧版本保存的统一 windowOpacity 字段
+    const savedOpacity = state.videoOpacity ?? state.windowOpacity
+    if (typeof savedOpacity === 'number') {
+      windowOpacity.value = Math.min(100, Math.max(10, savedOpacity))
+    }
     if (typeof state.videoBackground === 'string') {
       backgroundColor.value = state.videoBackground
     }
@@ -284,6 +260,11 @@ onMounted(async () => {
   // 监听背景色变化（Alt+S 设置弹窗）
   disposeWindowBackground = window.api.onWindowBackground((color) => {
     backgroundColor.value = color
+  })
+
+  // 监听整窗不透明度变化
+  disposeWindowOpacity = window.api.onWindowOpacity((value) => {
+    windowOpacity.value = Math.round(Number(value) * 100)
   })
 
   // Alt+Q 隐藏/显示时暂停/恢复视频
@@ -311,6 +292,8 @@ onBeforeUnmount(() => {
   disposeVideoChanged = null
   disposeWindowBackground?.()
   disposeWindowBackground = null
+  disposeWindowOpacity?.()
+  disposeWindowOpacity = null
   disposePauseVideo?.()
   disposePauseVideo = null
   disposeResumeVideo?.()
@@ -319,7 +302,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="lecture-page" :style="{ background: backgroundColor }">
+  <div class="lecture-page" :style="{ background: effectiveBackground, opacity: windowOpacity / 100 }">
     <!-- 顶部隐形拖拽条（覆盖窗口边缘缩放区，保证有足够的可拖区域） -->
     <div class="drag-strip" title="按住此处拖动窗口"></div>
 

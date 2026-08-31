@@ -19,6 +19,8 @@ const api = {
   jumpToPosition: (position) => ipcRenderer.invoke('words:jump', { wordIndex: position, cPartIndex: 0, field: 'w' }),
   saveFavorites: (favoritesData) => ipcRenderer.invoke('save-favorites', favoritesData),
   loadFavorites: () => ipcRenderer.invoke('load-favorites'),
+  loadStudyProgress: () => ipcRenderer.invoke('progress:load'),
+  saveStudyProgress: (payload) => ipcRenderer.invoke('progress:save', payload),
   selectMode: (mode) => ipcRenderer.invoke('mode:select', mode),
   selectVideo: () => ipcRenderer.invoke('dialog:select-video'),
   loadNotes: () => ipcRenderer.invoke('notes:load'),
@@ -26,6 +28,7 @@ const api = {
   loadLectureState: () => ipcRenderer.invoke('lecture:load-state'),
   saveLectureState: (payload) => ipcRenderer.invoke('lecture:save-state', payload),
   setWindowOpacity: (target, value) => ipcRenderer.invoke('window:set-opacity', target, value),
+  setContentSize: (width, height) => ipcRenderer.invoke('window:set-content-size', width, height),
   onWindowOpacity: (callback) => {
     const listener = (_event, value) => callback(value)
     ipcRenderer.on('window:opacity', listener)
@@ -38,6 +41,15 @@ const api = {
     return () => ipcRenderer.removeListener('window:background', listener)
   },
   setEditorStyle: (key, value) => ipcRenderer.invoke('window:set-editor-style', key, value),
+  navigateBrowser: (url) => ipcRenderer.invoke('browser:navigate', url),
+  onBrowserNavigate: (callback) => {
+    const listener = (_event, url) => callback(url)
+    ipcRenderer.on('browser:navigate', listener)
+    return () => ipcRenderer.removeListener('browser:navigate', listener)
+  },
+  loadBrowserState: () => ipcRenderer.invoke('browser:load-state'),
+  saveBrowserState: (payload) => ipcRenderer.invoke('browser:save-state', payload),
+  closeBrowserSettingsWindow: () => ipcRenderer.send('browser-settings:close'),
   onPauseVideo: (callback) => {
     const listener = () => callback()
     ipcRenderer.on('lecture:pause-video', listener)

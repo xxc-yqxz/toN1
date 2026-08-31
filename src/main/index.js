@@ -54,19 +54,26 @@ const DEFAULT_WINDOW_WIDTH = 900
 const DEFAULT_WINDOW_HEIGHT = 800
 const MIN_WINDOW_WIDTH = 320
 const MIN_WINDOW_HEIGHT = 80
+// 背词主窗口（透明悬浮）允许更小的高度，便于贴合单行文字
+const MIN_STUDY_WINDOW_HEIGHT = 24
+const MAX_STUDY_WINDOW_HEIGHT = 2000
 const WINDOW_STATE_FILE = 'window-state.json'
 const WINDOW_STATE_SAVE_DELAY_MS = 200
 const LECTURE_WINDOW_STATE_FILE = 'lecture-window-state.json'
 const SETTINGS_FILE = 'app-settings.json'
 const NOTES_FILE = 'note.json'
 const LECTURE_STATE_FILE = 'lecture-state.json'
+const BROWSER_STATE_FILE = 'browser-state.json'
+const STUDY_PROGRESS_FILE = 'study-progress.json'
 const DEFAULT_SETTINGS = {
   textSize: 22,
   opacity: 0.96,
   textColor: '#FFFFFF',
   selectedDictionary: 0,
   studyMode: 'normal',
-  appMode: 'study'
+  appMode: 'study',
+  autoSpeakInterval: 0, // 自动朗读间隔（秒），0 = 关闭
+  speechRate: 1 // 朗读语速倍率（0.5 ~ 2.0），1 = 正常语速
 }
 
 const VIDEO_MIME_TYPES = {
@@ -89,11 +96,14 @@ let settingsWindow = null
 let lectureSettingsWindow = null
 let lectureVideoWindow = null
 let lectureNoteWindow = null
+let browserWindow = null
+let browserSettingsWindow = null
 let modeSelectWindow = null
 let tray = null
 let saveBoundsTimer = null
 let lectureVideoSaveTimer = null
 let lectureNoteSaveTimer = null
+let snapBottomTimer = null
 let appSettings = { ...DEFAULT_SETTINGS }
 // Alt+Q 隐藏状态标记：隐藏时窗口移到屏幕外（不 hide()、不改页面透明度），
 // isVisible() 恒为 true，因此用独立标记判断当前是否处于隐藏状态
@@ -105,6 +115,10 @@ function getWindowStatePath() {
 
 function getSettingsPath() {
   return join(app.getPath('userData'), SETTINGS_FILE)
+}
+
+function getStudyProgressPath() {
+  return join(app.getPath('userData'), STUDY_PROGRESS_FILE)
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -123,7 +137,16 @@ function sanitizeSettings(input) {
     typeof source.textColor === 'string' ? source.textColor.trim().toUpperCase() : ''
   const textColor = /^#[0-9A-F]{6}$/.test(rawTextColor) ? rawTextColor : DEFAULT_SETTINGS.textColor
   const studyMode = typeof source.studyMode === 'string' && source.studyMode === 'favorites' ? 'favorites' : 'normal'
-  const appMode = typeof source.appMode === 'string' && source.appMode === 'lecture' ? 'lecture' : 'study'
+  const appMode =
+    typeof source.appMode === 'string' && (source.appMode === 'lecture' || source.appMode === 'browser')
+      ? source.appMode
+      : 'study'
+  const autoSpeakInterval = Number(
+    clampNumber(source.autoSpeakInterval, 0, 3600, DEFAULT_SETTINGS.autoSpeakInterval)
+  )
+  const speechRate = Number(
+    clampNumber(source.speechRate, 0.5, 2, DEFAULT_SETTINGS.speechRate).toFixed(2)
+  )
 
   return {
     textSize,
@@ -131,7 +154,9 @@ function sanitizeSettings(input) {
     textColor,
     selectedDictionary,
     studyMode,
-    appMode
+    appMode,
+    autoSpeakInterval,
+    speechRate
   }
 }
 
@@ -256,8 +281,44 @@ function scheduleWindowStateSave() {
   }, WINDOW_STATE_SAVE_DELAY_MS)
 }
 
+// 背词透明窗口跨 DPI 显示器拖拽时，Windows 坐标换算会留下误差，
+// 导致窗口底边无法真正贴到屏幕底部（扩展屏尤其明显）。
+// 移动停止后检测：若底边距当前显示器 workArea 底部很近（视为「想贴底」），
+// 强制 setPosition 精确贴齐，消除跨 DPI 的间隙。
+function snapMainWindowToBottomEdge() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized() || mainWindow.isMaximized()) return
+
+  const bounds = mainWindow.getBounds()
+  // 隐藏到托盘时窗口在屏幕外，跳过
+  if (bounds.x < -10000 || bounds.y < -10000) return
+
+  const display = screen.getDisplayMatching(bounds)
+  const workArea = display.workArea
+  const bottom = workArea.y + workArea.height
+  const windowBottom = bounds.y + bounds.height
+  const gap = bottom - windowBottom
+
+  // 仅当底边距屏幕底部 0~2px（视为用户已手动拖到最底）时，强制精确贴齐，
+  // 消除跨 DPI 的微小间隙；离底部稍远则不干预，避免误吸附
+  if (gap > 0 && gap <= 2) {
+    mainWindow.setPosition(bounds.x, bottom - bounds.height)
+  }
+}
+
+function scheduleSnapToBottom() {
+  if (snapBottomTimer) {
+    clearTimeout(snapBottomTimer)
+  }
+
+  snapBottomTimer = setTimeout(() => {
+    snapMainWindowToBottomEdge()
+    snapBottomTimer = null
+  }, 150)
+}
+
 function getAllMainWindows() {
-  return [mainWindow, lectureVideoWindow, lectureNoteWindow].filter(
+  return [mainWindow, lectureVideoWindow, lectureNoteWindow, browserWindow].filter(
     (win) => win && !win.isDestroyed()
   )
 }
@@ -424,7 +485,7 @@ function createModeSelectWindow() {
 
   modeSelectWindow = new BrowserWindow({
     width: 500,
-    height: 380,
+    height: 470,
     resizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -463,6 +524,7 @@ function closePrimaryWindows() {
     mainWindow.destroy()
   }
   closeLectureWindows()
+  closeBrowserWindow()
 }
 
 function closeLectureWindows() {
@@ -478,6 +540,13 @@ function closeLectureWindows() {
   }
 
   // 清理隐藏状态（隐藏中切换模式/退出时，避免残留标记影响新窗口）
+  isWindowHidden = false
+}
+
+function closeBrowserWindow() {
+  if (browserWindow && !browserWindow.isDestroyed()) {
+    browserWindow.destroy()
+  }
   isWindowHidden = false
 }
 
@@ -811,8 +880,141 @@ function createLectureNoteWindow() {
   }
 }
 
+function createBrowserWindow() {
+  if (browserWindow && !browserWindow.isDestroyed()) {
+    browserWindow.show()
+    browserWindow.focus()
+    return
+  }
+
+  browserWindow = new BrowserWindow({
+    // 默认手机尺寸（约 400x860，竖屏手机比例）
+    width: 400,
+    height: 860,
+    minWidth: 320,
+    minHeight: 480,
+    show: false,
+    // 无边框：去掉系统标题栏及最小化/最大化/关闭按钮
+    frame: false,
+    autoHideMenuBar: true,
+    // 浏览器模式：普通窗口 + setOpacity 原生半透明，避免透明窗口灰屏问题
+    transparent: false,
+    backgroundColor: '#ffffff',
+    title: '浏览器模式',
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      // 启用 <webview> 标签以加载外部网页
+      webviewTag: true,
+      backgroundThrottling: false
+    }
+  })
+
+  browserWindow.removeMenu()
+  browserWindow.webContents.setBackgroundThrottling(false)
+
+  browserWindow.on('ready-to-show', () => {
+    browserWindow?.show()
+  })
+
+  browserWindow.on('closed', () => {
+    browserWindow = null
+  })
+
+  // webview 中点击 target=_blank 链接时，用系统浏览器打开，而不是新建窗口。
+  // 滚轮缩放改由渲染进程注入脚本实现（before-input-event 不触发 webview 滚轮事件）
+  browserWindow.webContents.on('did-attach-webview', (_event, wc) => {
+    wc.setWindowOpenHandler((details) => {
+      shell.openExternal(details.url)
+      return { action: 'deny' }
+    })
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    browserWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?window=browser`)
+  } else {
+    browserWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { window: 'browser' }
+    })
+  }
+}
+
+// 浏览器模式设置弹窗（Alt+S 触发）：输入网址 + 调整窗口不透明度
+function openBrowserSettingsDialog() {
+  if (browserSettingsWindow && !browserSettingsWindow.isDestroyed()) {
+    browserSettingsWindow.show()
+    browserSettingsWindow.focus()
+    return
+  }
+
+  browserSettingsWindow = new BrowserWindow({
+    width: 520,
+    height: 420,
+    minWidth: 460,
+    minHeight: 260,
+    show: false,
+    autoHideMenuBar: true,
+    maximizable: false,
+    title: '浏览器设置',
+    ...(process.platform === 'linux' ? { icon } : {}),
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  browserSettingsWindow.removeMenu()
+
+  browserSettingsWindow.on('ready-to-show', () => {
+    browserSettingsWindow?.show()
+    browserSettingsWindow?.focus()
+  })
+
+  browserSettingsWindow.on('closed', () => {
+    browserSettingsWindow = null
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    browserSettingsWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}?window=browser-settings`)
+  } else {
+    browserSettingsWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+      query: { window: 'browser-settings' }
+    })
+  }
+}
+
+// 从 browser-state.json 恢复网址与不透明度
+function applySavedBrowserState() {
+  const apply = () => {
+    try {
+      const statePath = join(process.cwd(), BROWSER_STATE_FILE)
+      if (!existsSync(statePath)) return
+      const state = JSON.parse(readFileSync(statePath, 'utf-8'))
+      const raw = Number(state.browserOpacity)
+      if (browserWindow && !browserWindow.isDestroyed() && Number.isFinite(raw)) {
+        browserWindow.setOpacity(Math.min(100, Math.max(10, raw)) / 100)
+      }
+      if (typeof state.browserUrl === 'string' && state.browserUrl) {
+        if (browserWindow && !browserWindow.isDestroyed()) {
+          browserWindow.webContents.send('browser:navigate', state.browserUrl)
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to apply saved browser state:', error)
+    }
+  }
+
+  if (!browserWindow || browserWindow.isDestroyed()) return
+  if (browserWindow.webContents.isLoading()) {
+    browserWindow.webContents.once('did-finish-load', apply)
+  } else {
+    apply()
+  }
+}
+
 function selectMode(mode) {
-  const targetMode = mode === 'lecture' ? 'lecture' : 'study'
+  const targetMode = mode === 'lecture' ? 'lecture' : mode === 'browser' ? 'browser' : 'study'
   appSettings = saveAppSettings({ ...appSettings, appMode: targetMode })
 
   closePrimaryWindows()
@@ -821,6 +1023,9 @@ function selectMode(mode) {
     createLectureVideoWindow()
     createLectureNoteWindow()
     applySavedWindowOpacity()
+  } else if (targetMode === 'browser') {
+    createBrowserWindow()
+    applySavedBrowserState()
   } else {
     createWindow()
   }
@@ -873,7 +1078,7 @@ function createWindow() {
       ? { x: initialBounds.x, y: initialBounds.y }
       : {}),
     minWidth: MIN_WINDOW_WIDTH,
-    minHeight: MIN_WINDOW_HEIGHT,
+    minHeight: MIN_STUDY_WINDOW_HEIGHT,
     show: false,
     autoHideMenuBar: true,
     alwaysOnTop: true,
@@ -898,7 +1103,10 @@ function createWindow() {
     mainWindow?.show()
   })
 
-  mainWindow.on('move', scheduleWindowStateSave)
+  mainWindow.on('move', () => {
+    scheduleWindowStateSave()
+    scheduleSnapToBottom()
+  })
   mainWindow.on('resize', scheduleWindowStateSave)
   mainWindow.on('close', saveWindowState)
   mainWindow.on('closed', () => {
@@ -1083,6 +1291,34 @@ app.whenReady().then(() => {
     }
   })
 
+  // 背诵进度持久化：保存/恢复上次背到的词典与位置
+  ipcMain.handle('progress:load', async () => {
+    const progressPath = getStudyProgressPath()
+    try {
+      if (!existsSync(progressPath)) return null
+      const parsed = JSON.parse(readFileSync(progressPath, 'utf-8'))
+      return parsed && typeof parsed === 'object' ? parsed : null
+    } catch (error) {
+      console.warn('Failed to load study progress:', error)
+      return null
+    }
+  })
+
+  ipcMain.handle('progress:save', async (_, payload) => {
+    const progressPath = getStudyProgressPath()
+    try {
+      writeFileSync(
+        progressPath,
+        JSON.stringify(payload && typeof payload === 'object' ? payload : {}),
+        'utf-8'
+      )
+      return true
+    } catch (error) {
+      console.error('Failed to save study progress:', error)
+      return false
+    }
+  })
+
   // 收藏文件操作
   ipcMain.handle('save-favorites', async (_, favoritesData) => {
     try {
@@ -1191,14 +1427,40 @@ app.whenReady().then(() => {
     }
   })
 
-  // 窗口不透明度控制（供听课模式使用，可分别设置视频/笔记窗口）
-  // 视频窗口为普通窗口，用原生 setOpacity；
+  // 背词主窗口：按内容调整窗口尺寸（高度贴合文字；宽度在文字超宽时自动拉伸）
+  // 左边缘固定不动，宽度变化时向右侧延伸（x 不变、width 增大）
+  ipcMain.handle('window:set-content-size', (_, width, height) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return false
+    const bounds = mainWindow.getBounds()
+    const display = screen.getDisplayMatching(bounds)
+    // 宽度上限：当前显示器工作区宽度，避免长文本把窗口拉得超出屏幕
+    const maxWidth = Math.max(MIN_WINDOW_WIDTH, Math.floor(display.workArea.width))
+    const currentWidth = mainWindow.getContentSize()[0]
+    const targetWidth = Math.round(clampNumber(width, MIN_WINDOW_WIDTH, maxWidth, currentWidth))
+    const targetHeight = Math.round(
+      clampNumber(height, MIN_STUDY_WINDOW_HEIGHT, MAX_STUDY_WINDOW_HEIGHT, MIN_STUDY_WINDOW_HEIGHT)
+    )
+    mainWindow.setBounds({
+      x: bounds.x,
+      y: bounds.y,
+      width: targetWidth,
+      height: targetHeight
+    })
+    return true
+  })
+
+  // 窗口不透明度控制（供听课/浏览器模式使用，可分别设置各窗口）
+  // 视频/浏览器窗口为普通窗口，用原生 setOpacity；
   // 笔记窗口为透明窗口（不能用 setOpacity），广播 CSS opacity 事件由渲染层应用
   ipcMain.handle('window:set-opacity', (event, target, value) => {
     const opacity = Number(clampNumber(value, 0.05, 1, 1).toFixed(2))
     if (target === 'notes') {
       if (lectureNoteWindow && !lectureNoteWindow.isDestroyed()) {
         lectureNoteWindow.webContents.send('window:opacity', opacity)
+      }
+    } else if (target === 'browser') {
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        browserWindow.setOpacity(opacity)
       }
     } else if (lectureVideoWindow && !lectureVideoWindow.isDestroyed()) {
       lectureVideoWindow.setOpacity(opacity)
@@ -1253,6 +1515,48 @@ app.whenReady().then(() => {
     }
   })
 
+  // 浏览器模式：设置弹窗输入网址后导航浏览器窗口
+  ipcMain.handle('browser:navigate', (_, url) => {
+    if (browserWindow && !browserWindow.isDestroyed() && typeof url === 'string' && url) {
+      browserWindow.webContents.send('browser:navigate', url)
+    }
+    return true
+  })
+
+  // 浏览器模式状态（网址、不透明度）
+  ipcMain.handle('browser:load-state', async () => {
+    const statePath = join(process.cwd(), BROWSER_STATE_FILE)
+    try {
+      if (!existsSync(statePath)) return null
+      return JSON.parse(readFileSync(statePath, 'utf-8'))
+    } catch (error) {
+      console.error('Failed to load browser state:', error)
+      return null
+    }
+  })
+
+  ipcMain.handle('browser:save-state', async (_, payload) => {
+    const statePath = join(process.cwd(), BROWSER_STATE_FILE)
+    try {
+      writeFileSync(
+        statePath,
+        JSON.stringify(payload && typeof payload === 'object' ? payload : {}),
+        'utf-8'
+      )
+      return true
+    } catch (error) {
+      console.error('Failed to save browser state:', error)
+      return false
+    }
+  })
+
+  ipcMain.on('browser-settings:close', (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    if (senderWindow && senderWindow === browserSettingsWindow) {
+      senderWindow.close()
+    }
+  })
+
   ipcMain.on('app:quit', () => {
     app.quit()
   })
@@ -1269,9 +1573,11 @@ app.whenReady().then(() => {
   }
 
   const settingsShortcutRegistered = globalShortcut.register('Alt+S', () => {
-    // 听课模式下弹出听课设置（选择视频 / 窗口不透明度），背词模式保持原有设置
+    // 听课模式弹听课设置、浏览器模式弹浏览器设置、背词模式保持原有设置
     if (appSettings.appMode === 'lecture') {
       openLectureSettingsDialog()
+    } else if (appSettings.appMode === 'browser') {
+      openBrowserSettingsDialog()
     } else {
       openSettingsDialog()
     }
@@ -1307,6 +1613,11 @@ app.on('before-quit', () => {
     saveBoundsTimer = null
   }
 
+  if (snapBottomTimer) {
+    clearTimeout(snapBottomTimer)
+    snapBottomTimer = null
+  }
+
   if (lectureVideoSaveTimer) {
     clearTimeout(lectureVideoSaveTimer)
     lectureVideoSaveTimer = null
@@ -1326,7 +1637,13 @@ app.on('before-quit', () => {
     lectureSettingsWindow = null
   }
 
+  if (browserSettingsWindow && !browserSettingsWindow.isDestroyed()) {
+    browserSettingsWindow.destroy()
+    browserSettingsWindow = null
+  }
+
   closeLectureWindows()
+  closeBrowserWindow()
 
   if (modeSelectWindow && !modeSelectWindow.isDestroyed()) {
     modeSelectWindow.destroy()

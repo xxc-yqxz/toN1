@@ -16,13 +16,24 @@ function quit() {
     <div class="mode-grid">
       <button type="button" class="mode-card study" @click="selectMode('study')">
         <span class="mode-icon">📖</span>
-        <span class="mode-name">背词模式</span>
-        <span class="mode-desc">透明悬浮置顶窗口，翻词 / 朗读 / 收藏 / TTS 发音</span>
+        <span class="mode-text">
+          <span class="mode-name">背词模式</span>
+          <span class="mode-desc">透明悬浮置顶窗口，翻词 / 朗读 / 收藏 / TTS 发音</span>
+        </span>
       </button>
       <button type="button" class="mode-card lecture" @click="selectMode('lecture')">
         <span class="mode-icon">🎬</span>
-        <span class="mode-name">听课模式</span>
-        <span class="mode-desc">左侧播放本地视频（可调不透明度 / 窗口大小），右侧 JSON 笔记编辑</span>
+        <span class="mode-text">
+          <span class="mode-name">听课模式</span>
+          <span class="mode-desc">左侧播放本地视频（可调不透明度 / 窗口大小），右侧 JSON 笔记编辑</span>
+        </span>
+      </button>
+      <button type="button" class="mode-card browser" @click="selectMode('browser')">
+        <span class="mode-icon">🌐</span>
+        <span class="mode-text">
+          <span class="mode-name">浏览器模式</span>
+          <span class="mode-desc">输入网址浏览网页，Alt+S 可调窗口不透明度</span>
+        </span>
       </button>
     </div>
 
@@ -69,7 +80,8 @@ function quit() {
 
 .mode-grid {
   display: flex;
-  gap: 14px;
+  flex-direction: column;
+  gap: 10px;
   width: 100%;
   margin-top: 8px;
 }
@@ -77,15 +89,16 @@ function quit() {
 .mode-card {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 14px;
+  padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
   background: #17171a;
   color: #e8e8e8;
   cursor: pointer;
+  text-align: left;
   transition:
     transform 0.15s ease,
     border-color 0.15s ease,
@@ -103,20 +116,26 @@ function quit() {
 }
 
 .mode-icon {
-  font-size: 34px;
+  font-size: 30px;
   line-height: 1;
+  flex-shrink: 0;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .mode-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
 .mode-desc {
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
   color: #999;
-  text-align: center;
 }
 
 .footer {
