@@ -190,7 +190,7 @@
       }
       .action-btns span {
         cursor: pointer;
-        font-size: 1.5rem;
+        font-size: 1rem;
         white-space: nowrap;
         opacity: 0.3;
         transition: all 0.3s;
@@ -409,7 +409,7 @@
         background: var(--accent-pink);
         color: var(--bg-color);
       }
-      /* 已掌握本多选列表 */
+      /* 掌握本多选列表 */
       #mas-list li {
         justify-content: flex-start;
         gap: 10px;
@@ -823,17 +823,17 @@
       <div class="action-btns" id="current-actions">
         <span id="star-btn" onclick="toggleRecord('fav')">⭐ 收藏</span>
         <span id="err-btn" onclick="toggleRecord('err')">❌ 纠错</span>
-        <span id="mas-btn" onclick="toggleMastered()" title="标记为已掌握，掌握后不再出现在背诵列表">✅ 已掌握</span>
+        <span id="mas-btn" onclick="toggleMastered()" title="标记为掌握后不再出现在背诵列表">✅ 掌握</span>
         <span id="mode-btn" onclick="toggleStudyMode()" title="切换背诵模式">📚 普通模式</span>
         <label class="auto-answer-btn" id="auto-answer-btn" title="开启后切换单词时直接显示答案">
           <input type="checkbox" id="auto-answer-input" onchange="toggleAutoAnswer()" />
-          <span>自动显示答案</span>
+          <span>自动</span>
         </label>
         <span
           id="exam-btn"
           onclick="openExamSetup()"
           title="开始考试"
-          style="font-size: 1.5rem; cursor: pointer; opacity: 0.5; transition: all 0.3s"
+          style="font-size: 1rem; cursor: pointer; opacity: 0.5; transition: all 0.3s"
           onmouseover="this.style.opacity = '1'"
           onmouseout="this.style.opacity = '0.5'"
           >📝 考试</span
@@ -989,7 +989,7 @@
 
         <div style="margin-top: 15px">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px">
-            <h4 style="margin: 0">✅ 已掌握本</h4>
+            <h4 style="margin: 0">✅ 掌握本</h4>
             <button
               onclick="unmarkSelectedMastered()"
               id="mas-unmark-btn"
@@ -15213,7 +15213,7 @@
 
       // --- 数据加载 ---
       function loadDataFromLib(lib) {
-        // 过滤掉已掌握的词
+        // 过滤掉掌握的词
         const mastered = new Set(getMasteredRecords(lib.name))
         words = lib.words.filter((w) => !mastered.has(w.w))
         currentLibName = lib.name
@@ -15325,7 +15325,7 @@
         document.getElementById('star-btn').className = favs.includes(word.w) ? 'active' : ''
         document.getElementById('err-btn').className = errs.includes(word.w) ? 'active' : ''
 
-        // 更新已掌握状态
+        // 更新掌握状态
         const masKey = `mas_${word.sourceLib || currentLibName}`
         const masRecords = JSON.parse(localStorage.getItem(masKey) || '[]')
         document.getElementById('mas-btn').className = masRecords.includes(word.w) ? 'active' : ''
@@ -15397,8 +15397,8 @@
         })
       }
 
-      // --- 已掌握功能 ---
-      // 获取某词库已掌握的记录：key格式 "mas_词库名"
+      // --- 掌握功能 ---
+      // 获取某词库掌握的记录：key格式 "mas_词库名"
       function getMasteredRecords(libName) {
         return JSON.parse(localStorage.getItem(`mas_${libName}`) || '[]')
       }
@@ -15411,7 +15411,7 @@
         return studyMode === 'favorites' && word.sourceLib ? word.sourceLib : currentLibName
       }
 
-      // 标记/取消标记当前单词为已掌握
+      // 标记/取消标记当前单词为掌握
       function toggleMastered() {
         if (!words.length) return
         const word = words[currentIndex]
@@ -15426,14 +15426,14 @@
         localStorage.setItem(`mas_${libName}`, JSON.stringify(records))
         renderNotebooks()
         if (isNowMastered) {
-          // 标记为已掌握后从当前背诵列表移除，跳到下一个词
+          // 标记为掌握后从当前背诵列表移除，跳到下一个词
           applyMasteredFilter()
         } else {
           renderWord()
         }
       }
 
-      // 重新应用"已掌握"过滤：已掌握的词从背诵列表移除
+      // 重新应用"掌握"过滤：掌握的词从背诵列表移除
       function applyMasteredFilter() {
         if (!currentLibName) return
         if (studyMode === 'favorites') {
@@ -15451,7 +15451,7 @@
         updateUI()
       }
 
-      // 渲染已掌握本（支持多选）
+      // 渲染掌握本（支持多选）
       function renderMasteredList() {
         const list = document.getElementById('mas-list')
         if (!list) return
@@ -15459,7 +15459,7 @@
         const records = getMasteredRecords(libName)
         list.innerHTML = records.length
           ? ''
-          : '<li style="font-size:0.7rem; opacity:0.4; cursor:default">暂无已掌握单词</li>'
+          : '<li style="font-size:0.7rem; opacity:0.4; cursor:default">暂无掌握单词</li>'
         records.forEach((w) => {
           const li = document.createElement('li')
           const cb = document.createElement('input')
@@ -15506,7 +15506,7 @@
           const progressText =
             availableTotal > 0 ? ` (${Math.min(progress + 1, availableTotal)}/${availableTotal})` : ''
           const examText = learnedCount > 0 ? ` | 考试: ${learnedCount}/${total}` : ''
-          const masText = masteredCount > 0 ? ` | 已掌握: ${masteredCount}` : ''
+          const masText = masteredCount > 0 ? ` | 掌握: ${masteredCount}` : ''
           div.innerHTML = `<span>${lib.name}${progressText}<span style="opacity:0.5;font-size:0.75rem">${examText}${masText}</span></span> <div><button onclick="loadDataFromLibByName('${lib.name}')">应用</button></div>`
           container.appendChild(div)
         })
@@ -15740,7 +15740,7 @@
         const currentLib = dataSource.find((l) => l.name === realLibName)
         const favorites = []
         if (currentLib) {
-          // 过滤掉已掌握的词
+          // 过滤掉掌握的词
           const mastered = new Set(getMasteredRecords(realLibName))
           favWords.forEach((wordW) => {
             const wordObj = currentLib.words.find((w) => w.w === wordW)
@@ -15751,7 +15751,7 @@
         }
 
         if (favorites.length === 0) {
-          alert('当前词库暂无收藏单词（或已被标记为已掌握），请先收藏单词或取消掌握后再切换收藏模式')
+          alert('当前词库暂无收藏单词（或已被标记为掌握），请先收藏单词或取消掌握后再切换收藏模式')
           studyMode = 'normal'
           saveLastMode('normal')
           // 重新加载之前词库的普通模式，保证列表可用

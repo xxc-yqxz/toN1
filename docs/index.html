@@ -190,13 +190,38 @@
       }
       .action-btns span {
         cursor: pointer;
-        font-size: 1.5rem;
+        font-size: 1rem;
         white-space: nowrap;
         opacity: 0.3;
         transition: all 0.3s;
       }
       .action-btns span.active {
         opacity: 0.8;
+      }
+      /* 自动显示答案勾选框 */
+      .auto-answer-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        white-space: nowrap;
+        user-select: none;
+        opacity: 0.6;
+        transition: all 0.3s;
+      }
+      .auto-answer-btn span {
+        font-size: 0.95rem;
+        opacity: 1;
+      }
+      .auto-answer-btn:hover {
+        opacity: 0.95;
+      }
+      .auto-answer-btn input {
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        cursor: pointer;
+        accent-color: var(--accent-pink);
       }
 
       /* 播放按钮 */
@@ -383,6 +408,26 @@
       .word-list li:hover {
         background: var(--accent-pink);
         color: var(--bg-color);
+      }
+      /* 掌握本多选列表 */
+      #mas-list li {
+        justify-content: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+      #mas-list li:hover {
+        background: transparent;
+        color: inherit;
+      }
+      body.dark #mas-list li:hover {
+        background: transparent;
+        color: inherit;
+      }
+      #mas-list li input[type='checkbox'] {
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+        accent-color: var(--accent-pink);
       }
 
       .close-modal {
@@ -778,12 +823,17 @@
       <div class="action-btns" id="current-actions">
         <span id="star-btn" onclick="toggleRecord('fav')">⭐ 收藏</span>
         <span id="err-btn" onclick="toggleRecord('err')">❌ 纠错</span>
+        <span id="mas-btn" onclick="toggleMastered()" title="标记为掌握后不再出现在背诵列表">✅ 掌握</span>
         <span id="mode-btn" onclick="toggleStudyMode()" title="切换背诵模式">📚 普通模式</span>
+        <label class="auto-answer-btn" id="auto-answer-btn" title="开启后切换单词时直接显示答案">
+          <input type="checkbox" id="auto-answer-input" onchange="toggleAutoAnswer()" />
+          <span>自动</span>
+        </label>
         <span
           id="exam-btn"
           onclick="openExamSetup()"
           title="开始考试"
-          style="font-size: 1.5rem; cursor: pointer; opacity: 0.5; transition: all 0.3s"
+          style="font-size: 1rem; cursor: pointer; opacity: 0.5; transition: all 0.3s"
           onmouseover="this.style.opacity = '1'"
           onmouseout="this.style.opacity = '0.5'"
           >📝 考试</span
@@ -935,6 +985,20 @@
             <h4>❌ 纠错本</h4>
             <ul class="word-list" id="err-list"></ul>
           </div>
+        </div>
+
+        <div style="margin-top: 15px">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px">
+            <h4 style="margin: 0">✅ 掌握本</h4>
+            <button
+              onclick="unmarkSelectedMastered()"
+              id="mas-unmark-btn"
+              style="font-size: 0.8rem; padding: 3px 10px"
+            >
+              取消掌握
+            </button>
+          </div>
+          <ul class="word-list" id="mas-list" style="max-height: 220px"></ul>
         </div>
 
         <hr />
@@ -7334,7 +7398,7 @@
             },
             {
               w: 'Vないまでも',
-              c: '虽不及…，但也…\n例：休み（やすみ）ごとに帰ら（かえら）ないまでも、1週間（いっしゅうかん）に1回（いっかい）位（くらい）は電話（でんわ）をしたらどうですか。\n译：就算不能每个假期都回家，每周打一次电话怎么样？'
+              c: '虽不及…，但也…\n例休み（やすみ）ごとに帰ら（かえら）ないまでも、1週間（いっしゅうかん）に1回（いっかい）位（くらい）は電話（でんわ）をしたらどうですか。\n译：就算不能每个假期都回家，每周打一次电话怎么样？'
             },
             {
               w: 'Vずじまい',
@@ -13558,7 +13622,7 @@
           words: [
             {
               w: '动词的分类',
-              c: '一类动词：五段动词\n二类动词：一段动词\n三类动词：サ变、カ变动词（不规则变化动词）'
+              c: '一类动词：五段动词\n二类动词：一段动词\n三类动词：サ变、力变动词（不规则变化动词）'
             },
             {
               w: '一类动词（五段动词）的判定规则',
@@ -13578,7 +13642,7 @@
             },
             {
               w: '三类动词（不规则变化动词）的定义及分类',
-              c: '【名称】三类动词：サ变、カ变动词（不规则变化动词）。\n【具体分类】\n- 来る [カ变动词]\n- する・动作名词+する [サ变动词]\n【变化特点】词干和活用都 不规则地 发生变化。(说是不规则，但实际上也就两个词)'
+              c: '【名称】三类动词：サ变、カ变动词（不规则变化动词）。\n【具体分类】\n- 来る [力变动词]\n- する・动作名词+する [サ变动词]\n【变化特点】词干和活用都 不规则地 发生变化。(说是不规则，但实际上也就两个词)'
             },
             {
               w: '一类和二类动词的区分（一般规则）',
@@ -15087,6 +15151,7 @@
       let savedLibraries = []
       let studyMode = 'normal' // 背诵模式：'normal' 普通模式，'favorites' 收藏模式
       let previousLibName = '' // 切换到收藏模式前保存的词库名称
+      let autoAnswer = localStorage.getItem('auto_answer') === '1' // 自动显示答案开关
 
       // --- 主题切换 ---
       function initTheme() {
@@ -15130,6 +15195,7 @@
 
       function init() {
         initTheme()
+        updateAutoAnswerBtn()
         renderLibraryList()
         // 恢复上次使用的词库，找不到则加载第一个
         if (dataSource.length > 0) {
@@ -15147,7 +15213,9 @@
 
       // --- 数据加载 ---
       function loadDataFromLib(lib) {
-        words = lib.words
+        // 过滤掉掌握的词
+        const mastered = new Set(getMasteredRecords(lib.name))
+        words = lib.words.filter((w) => !mastered.has(w.w))
         currentLibName = lib.name
         studyMode = 'normal' // 切换到普通模式
         // 记住当前词库和模式，刷新后复原
@@ -15176,7 +15244,13 @@
       }
 
       function renderWord() {
-        if (!words.length) return
+        if (!words.length) {
+          document.getElementById('word-display').innerText = '暂无未掌握单词'
+          document.getElementById('content-display').style.display = 'none'
+          document.getElementById('toggle-btn').style.visibility = 'hidden'
+          document.getElementById('progress-text').innerText = '0 / 0'
+          return
+        }
         const word = words[currentIndex]
         document.getElementById('word-display').innerText = word.w
 
@@ -15222,8 +15296,14 @@
           contentDisplay.appendChild(lineDiv)
         })
 
-        document.getElementById('content-display').style.display = 'none'
-        document.getElementById('toggle-btn').style.visibility = 'visible'
+        if (autoAnswer) {
+          // 自动显示答案模式：直接显示答案，隐藏"显示答案"按钮
+          document.getElementById('content-display').style.display = 'block'
+          document.getElementById('toggle-btn').style.visibility = 'hidden'
+        } else {
+          document.getElementById('content-display').style.display = 'none'
+          document.getElementById('toggle-btn').style.visibility = 'visible'
+        }
 
         // 在收藏模式下显示来源词库信息
         const progressText =
@@ -15244,6 +15324,11 @@
 
         document.getElementById('star-btn').className = favs.includes(word.w) ? 'active' : ''
         document.getElementById('err-btn').className = errs.includes(word.w) ? 'active' : ''
+
+        // 更新掌握状态
+        const masKey = `mas_${word.sourceLib || currentLibName}`
+        const masRecords = JSON.parse(localStorage.getItem(masKey) || '[]')
+        document.getElementById('mas-btn').className = masRecords.includes(word.w) ? 'active' : ''
       }
 
       // --- 收藏与纠错核心逻辑 ---
@@ -15286,6 +15371,7 @@
       function renderNotebooks() {
         renderSimpleList('fav')
         renderSimpleList('err')
+        renderMasteredList()
       }
 
       function renderSimpleList(type) {
@@ -15311,6 +15397,99 @@
         })
       }
 
+      // --- 掌握功能 ---
+      // 获取某词库掌握的记录：key格式 "mas_词库名"
+      function getMasteredRecords(libName) {
+        return JSON.parse(localStorage.getItem(`mas_${libName}`) || '[]')
+      }
+      // 当前上下文对应的真实词库名（收藏模式下为来源词库）
+      function getRecordLibName() {
+        return studyMode === 'favorites' ? previousLibName || currentLibName : currentLibName
+      }
+      // 单词所属的真实词库名
+      function getWordLibName(word) {
+        return studyMode === 'favorites' && word.sourceLib ? word.sourceLib : currentLibName
+      }
+
+      // 标记/取消标记当前单词为掌握
+      function toggleMastered() {
+        if (!words.length) return
+        const word = words[currentIndex]
+        const libName = getWordLibName(word)
+        let records = getMasteredRecords(libName)
+        const isNowMastered = !records.includes(word.w)
+        if (isNowMastered) {
+          records.push(word.w)
+        } else {
+          records = records.filter((w) => w !== word.w)
+        }
+        localStorage.setItem(`mas_${libName}`, JSON.stringify(records))
+        renderNotebooks()
+        if (isNowMastered) {
+          // 标记为掌握后从当前背诵列表移除，跳到下一个词
+          applyMasteredFilter()
+        } else {
+          renderWord()
+        }
+      }
+
+      // 重新应用"掌握"过滤：掌握的词从背诵列表移除
+      function applyMasteredFilter() {
+        if (!currentLibName) return
+        if (studyMode === 'favorites') {
+          loadFavoritesMode()
+          return
+        }
+        const lib = dataSource.find((l) => l.name === currentLibName)
+        if (!lib) return
+        const mastered = new Set(getMasteredRecords(currentLibName))
+        words = lib.words.filter((w) => !mastered.has(w.w))
+        if (currentIndex >= words.length) {
+          currentIndex = Math.max(0, words.length - 1)
+        }
+        saveProgress(currentLibName, currentIndex)
+        updateUI()
+      }
+
+      // 渲染掌握本（支持多选）
+      function renderMasteredList() {
+        const list = document.getElementById('mas-list')
+        if (!list) return
+        const libName = getRecordLibName()
+        const records = getMasteredRecords(libName)
+        list.innerHTML = records.length
+          ? ''
+          : '<li style="font-size:0.7rem; opacity:0.4; cursor:default">暂无掌握单词</li>'
+        records.forEach((w) => {
+          const li = document.createElement('li')
+          const cb = document.createElement('input')
+          cb.type = 'checkbox'
+          cb.className = 'mas-cb'
+          cb.dataset.word = w
+          const span = document.createElement('span')
+          span.innerText = w
+          li.appendChild(cb)
+          li.appendChild(span)
+          list.appendChild(li)
+        })
+      }
+
+      // 多选取消掌握
+      function unmarkSelectedMastered() {
+        const selected = Array.from(document.querySelectorAll('#mas-list .mas-cb:checked')).map(
+          (cb) => cb.dataset.word
+        )
+        if (selected.length === 0) {
+          alert('请先勾选要取消掌握的单词')
+          return
+        }
+        const libName = getRecordLibName()
+        const remaining = getMasteredRecords(libName).filter((w) => !selected.includes(w))
+        localStorage.setItem(`mas_${libName}`, JSON.stringify(remaining))
+        renderNotebooks()
+        applyMasteredFilter()
+      }
+
       // --- 库管理与通用 ---
       function renderLibraryList() {
         const container = document.getElementById('library-container')
@@ -15322,9 +15501,13 @@
           const total = lib.words.length
           const history = getExamHistory(lib.name)
           const learnedCount = history.length
-          const progressText = total > 0 ? ` (${progress + 1}/${total})` : ''
+          const masteredCount = getMasteredRecords(lib.name).length
+          const availableTotal = Math.max(0, total - masteredCount)
+          const progressText =
+            availableTotal > 0 ? ` (${Math.min(progress + 1, availableTotal)}/${availableTotal})` : ''
           const examText = learnedCount > 0 ? ` | 考试: ${learnedCount}/${total}` : ''
-          div.innerHTML = `<span>${lib.name}${progressText}<span style="opacity:0.5;font-size:0.75rem">${examText}</span></span> <div><button onclick="loadDataFromLibByName('${lib.name}')">应用</button></div>`
+          const masText = masteredCount > 0 ? ` | 掌握: ${masteredCount}` : ''
+          div.innerHTML = `<span>${lib.name}${progressText}<span style="opacity:0.5;font-size:0.75rem">${examText}${masText}</span></span> <div><button onclick="loadDataFromLibByName('${lib.name}')">应用</button></div>`
           container.appendChild(div)
         })
       }
@@ -15334,6 +15517,18 @@
         if (lib) {
           loadDataFromLib(lib)
         }
+      }
+
+      // 自动显示答案开关：开启后切换单词时直接显示答案
+      function toggleAutoAnswer() {
+        autoAnswer = !autoAnswer
+        localStorage.setItem('auto_answer', autoAnswer ? '1' : '0')
+        updateAutoAnswerBtn()
+        renderWord() // 立即应用当前单词
+      }
+      function updateAutoAnswerBtn() {
+        const input = document.getElementById('auto-answer-input')
+        if (input) input.checked = autoAnswer
       }
 
       function showAnswer() {
@@ -15545,19 +15740,25 @@
         const currentLib = dataSource.find((l) => l.name === realLibName)
         const favorites = []
         if (currentLib) {
+          // 过滤掉掌握的词
+          const mastered = new Set(getMasteredRecords(realLibName))
           favWords.forEach((wordW) => {
             const wordObj = currentLib.words.find((w) => w.w === wordW)
-            if (wordObj) {
+            if (wordObj && !mastered.has(wordObj.w)) {
               favorites.push({ ...wordObj, sourceLib: realLibName })
             }
           })
         }
 
         if (favorites.length === 0) {
-          alert('当前词库暂无收藏单词，请先收藏一些单词再切换到收藏模式')
+          alert('当前词库暂无收藏单词（或已被标记为掌握），请先收藏单词或取消掌握后再切换收藏模式')
           studyMode = 'normal'
           saveLastMode('normal')
-          document.getElementById('mode-btn').innerHTML = '📚 普通模式'
+          // 重新加载之前词库的普通模式，保证列表可用
+          const targetLib = dataSource.find((l) => l.name === realLibName)
+          if (targetLib) {
+            loadDataFromLib(targetLib)
+          }
           return
         }
 
@@ -15658,7 +15859,7 @@
         updateDetailFavBtn()
 
         if (isWordLib(examState.libName)) {
-          // 单词类：显示假名+中文释义，没有例句
+          // 单词类：显示假名+中文释义，有例句的单词也显示例句
           const lines = word.c.split('\n')
           const kana = lines.length >= 1 ? lines[0].trim() : ''
           const meaning = lines.length >= 2 ? lines[1].trim() : ''
@@ -15666,8 +15867,9 @@
           document.getElementById('detail-kana').style.display = 'block'
           document.getElementById('detail-meaning').textContent = meaning
           document.getElementById('detail-meaning').style.display = 'block'
-          document.getElementById('detail-example').textContent = ''
-          document.getElementById('detail-example').style.display = 'none'
+          const example = getExampleText(word.c)
+          document.getElementById('detail-example').textContent = example || ''
+          document.getElementById('detail-example').style.display = example ? 'block' : 'none'
         } else {
           // 语法类：显示语法含义+例句
           const meaning = getPureMeaning(word.c, examState.libName)
@@ -15807,6 +16009,24 @@
           return trimmed
         }
         return text.substring(0, 40)
+      }
+
+      // 获取选项中"另一种语言"的补充文字（大字显示选项主体，小字显示对照翻译）
+      // 日选中(jp2cn)：选项是中文释义 → 小字显示日语单词（带假名）
+      // 中选日(cn2jp)：选项是日语单词 → 小字显示中文释义
+      function getExamOptionTrans(opt, direction, libName) {
+        if (!isWordLib(libName)) return ''
+        const word = opt.word
+        if (direction === 'jp2cn') {
+          const lines = word.c.split('\n')
+          const kana = lines.length >= 1 ? lines[0].trim() : ''
+          let jp = word.w.trim()
+          if (kana && kana !== jp) jp += `（${kana}）`
+          return jp
+        }
+        // cn2jp：返回中文释义（第二行）
+        const lines = word.c.split('\n')
+        return lines.length >= 2 ? lines[1].trim() : ''
       }
 
       // 开始考试
@@ -15990,15 +16210,14 @@
             if (savedAnswer.allOptions[i].isCorrect) {
               el.classList.add('correct')
             }
-            // 恢复翻译显示
+            // 恢复翻译显示（小字显示另一种语言，实现中日对照）
             if (isWordLib(examState.libName)) {
               const opt = savedAnswer.allOptions[i]
-              const lines = opt.word.c.split('\n')
-              const meaning = lines.length >= 2 ? lines[1].trim() : ''
-              if (meaning) {
+              const trans = getExamOptionTrans(opt, examState.direction, examState.libName)
+              if (trans) {
                 const transSpan = document.createElement('span')
                 transSpan.className = 'exam-option-trans'
-                transSpan.textContent = ` — ${meaning}`
+                transSpan.textContent = ` — ${trans}`
                 transSpan.style.cssText = 'opacity:0.7;font-size:0.85rem;word-break:break-all'
                 el.appendChild(transSpan)
               }
@@ -16255,23 +16474,24 @@
           // 自动加入收藏
           autoAddToFavorites(q)
 
-          // 记录错题
+          // 记录错题（同时保存该题所有选项，便于结果页回顾）
           examState.wrongList.push({
             word: q,
-            direction: direction
+            direction: direction,
+            options: allOptions,
+            optIdx: optIdx
           })
         }
 
-        // 对单词类词库，在每个选项右侧显示翻译
+        // 对单词类词库，在每个选项右侧显示另一种语言的翻译（大字选项 + 小字对照）
         if (isWordLib(examState.libName)) {
           optionEls.forEach((el, i) => {
             const opt = allOptions[i]
-            const lines = opt.word.c.split('\n')
-            const meaning = lines.length >= 2 ? lines[1].trim() : ''
-            if (meaning) {
+            const trans = getExamOptionTrans(opt, examState.direction, examState.libName)
+            if (trans) {
               const transSpan = document.createElement('span')
               transSpan.className = 'exam-option-trans'
-              transSpan.textContent = ` — ${meaning}`
+              transSpan.textContent = ` — ${trans}`
               transSpan.style.cssText = 'opacity:0.7;font-size:0.85rem;word-break:break-all'
               el.appendChild(transSpan)
             }
@@ -16622,6 +16842,7 @@
           `共 ${total} 题，答对 ${correct} 题，答错 ${wrong} 题`
 
         // 记录已考过的下标到缓存（勾选"包含已考过"时不记录，因为是复习模式）
+        // 只标记答对的题：答错的词不记入"已考过"，下次考试还会再出
         const libName = examState.libName
         if (!examState.includeLearned) {
           const historyKey =
@@ -16631,7 +16852,9 @@
           // 一次性读取，内存中修改，最后一次性写回
           const history = JSON.parse(localStorage.getItem(historyKey) || '[]')
           let changed = false
-          examState.questions.forEach((q) => {
+          examState.questions.forEach((q, qi) => {
+            const answer = examState._answers[qi]
+            if (!answer || !answer.isCorrect) return // 未答或答错的跳过
             const gIdx = examState.lib.words.findIndex((w) => w.w === q.w)
             if (gIdx !== -1 && !history.includes(gIdx)) {
               history.push(gIdx)
@@ -16659,9 +16882,41 @@
             const qWord = item.word.w
             const meaning = getPureMeaning(item.word.c, examState.libName)
             const translation = getChineseTranslation(item.word.c, examState.libName)
+            const questionText = item.direction === 'jp2cn' ? qWord : meaning
+            // 该题所有选项（绿色=正确答案，红色=你选错的选项）
+            let optionsHtml = ''
+            if (item.options) {
+              optionsHtml =
+                '<div style="margin:6px 0 4px;display:flex;flex-direction:column;gap:3px;font-size:0.9rem">'
+              item.options.forEach((opt, oi) => {
+                let style = ''
+                let mark = ''
+                if (opt.isCorrect) {
+                  style = 'color:var(--success);font-weight:bold'
+                  mark = '✅ '
+                } else if (oi === item.optIdx) {
+                  style = 'color:var(--danger);font-weight:bold'
+                  mark = '❌ '
+                }
+                // 小字补充：中选日显示假名，单词类显示另一种语言的翻译
+                let extra = ''
+                if (item.direction === 'cn2jp' && opt.kana) {
+                  extra += ` <span style="opacity:0.5;font-size:0.8rem;font-weight:normal">${opt.kana}</span>`
+                }
+                if (isWordLib(examState.libName)) {
+                  const trans = getExamOptionTrans(opt, item.direction, examState.libName)
+                  if (trans) {
+                    extra += ` <span style="opacity:0.6;font-size:0.8rem;font-weight:normal">— ${trans}</span>`
+                  }
+                }
+                optionsHtml += `<div style="${style}">${mark}${String.fromCharCode(65 + oi)}. ${opt.text}${extra}</div>`
+              })
+              optionsHtml += '</div>'
+            }
             html += `<div class="exam-wrong-item" style="cursor:pointer" data-wrong-idx="${idx}">
-                    <div class="wrong-q">${idx + 1}. ${item.direction === 'jp2cn' ? qWord : meaning}</div>
+                    <div class="wrong-q">${idx + 1}. ${questionText}</div>
                     <div class="wrong-a">→ ${item.direction === 'jp2cn' ? meaning : qWord}（${translation}）</div>
+                    ${optionsHtml}
                   </div>`
           })
           wrongListEl.innerHTML = html
